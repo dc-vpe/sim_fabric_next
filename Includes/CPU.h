@@ -100,10 +100,23 @@ private:
 
     bool Read(DslValue *file);
     static void Error(DslValue *error);
+    static bool IsMatch(u8chr ch, u8chr ex);
+    static u8chr GetExChar(U8String *expression, int64_t &offset);
+    int64_t Find(U8String *search, U8String *expression, int64_t start);
 
 
 //Standard library function.
 public:
+    void pfn_string_find();
+    void pfn_string_len();
+    void pfn_string_sub();
+    void pfn_string_replace();
+    void pfn_string_tolower();
+    void pfn_string_toupper();
+    void pfn_string_trimEnd();
+    void pfn_string_trimStart();
+    void pfn_string_toCollection();
+    void pfn_string_fromCollection();
     void pfn_abs();
     void pfn_acos();
     void pfn_asin();

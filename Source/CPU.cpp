@@ -7,6 +7,7 @@
 #include "../Includes/cpu.h"
 #include "../Includes/JsonParser.h"
 #include <cmath>
+#include <cctype>
 
 const char *OpCodeNames[] =
 {
@@ -152,6 +153,177 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
     }
 
     return addr;
+}
+
+/// \desc Raised an error event, currently only prints but will be changed as soon
+///       as the eventing system is in place.
+void CPU::Error(DslValue *dslError)
+{
+    dslError->Print(false);
+}
+
+bool CPU::IsMatch(u8chr ch, u8chr ex)
+{
+    switch( ex )
+    {
+        case 'C': return iscntrl((int)ch);
+        case 'B': return isblank((int)ch);
+        case 'S': return isspace((int)ch);
+        case 'U': return isupper((int)ch);
+        case 'u': return islower((int)ch);
+        case 'A': return isalpha((int)ch);
+        case 'D': return isdigit((int)ch);
+        case 'N': return isalnum((int)ch);
+        case 'P': return ispunct((int)ch);
+        case 'G': return isgraph((int)ch);
+        case 'p': return isprint((int)ch);
+        case 'X': return isxdigit((int)ch);
+        case '?': return true;
+        case '%': return ch == '%';
+        case U8_NULL_CHR: return true;
+        default: return ch == ex;
+    }
+}
+
+u8chr CPU::GetExChar(U8String *expression, int64_t &offset)
+{
+    u8chr ex = expression->get(offset++);
+    if ( ex == '%' )
+    {
+        ex = expression->get(offset++);
+    }
+
+    return ex;
+}
+
+int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
+{
+    if ( start < 0 || start >= search->Count() )
+    {
+        return -1;
+    }
+
+    int64_t offset = 0;
+    int64_t location = -1;
+    int64_t current = start;
+    auto end = (int64_t)search->Count();
+    while( current < end)
+    {
+        u8chr ch = search->get(current++);
+        u8chr ex = GetExChar(expression, offset);
+        if ( IsMatch(ch, ex) )
+        {
+            location = current-1;
+            int64_t pos = current;
+            while( offset < expression->Count() )
+            {
+                ch = search->get(pos++);
+                ex = GetExChar(expression, offset);
+                if ( ex == U8_NULL_CHR )
+                {
+                    return location;
+                }
+                if ( ch == U8_NULL_CHR )
+                {
+                    return -1;
+                }
+                if (IsMatch(ch, ex))
+                {
+                    continue;
+                }
+                location = -1;
+                offset = 0;
+                break;
+            }
+            return location;
+        }
+        else
+        {
+            location = -1;
+            offset = 0;
+        }
+    }
+
+    return -1;
+}
+
+void CPU::pfn_string_find()
+{
+    auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    //expression
+    params[top-totalParams+1].Convert(STRING_VALUE);
+    U8String expression;
+    expression.CopyFrom(&params[top-totalParams+1].sValue);
+
+    //start location
+    params[top-totalParams+2].Convert(INTEGER_VALUE);
+    int64_t start = params[top-totalParams+2].iValue;
+
+    A->type = INTEGER_VALUE;
+    A->iValue = Find(&search, &expression, start);
+
+    top -= totalParams;
+    params[top].LiteCopy(A);
+}
+
+void CPU::pfn_string_len()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_sub()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_replace()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_tolower()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_toupper()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_trimEnd()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_trimStart()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_toCollection()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
+}
+
+void CPU::pfn_string_fromCollection()
+{
+    auto totalParams = params[top].iValue;
+    top -= totalParams;
 }
 
 void CPU::pfn_abs()
@@ -424,13 +596,6 @@ bool CPU::Read(DslValue *file)
     return true;
 }
 
-/// \desc Raised an error event, currently only prints but will be changed as soon
-///       as the eventing system is in place.
-void CPU::Error(DslValue *dslError)
-{
-    dslError->Print(false);
-}
-
 void CPU::pfn_read()
 {
     auto totalParams = params[top].iValue;
@@ -486,12 +651,14 @@ void CPU::pfn_write()
 
 void CPU::pfn_files()
 {
-
+    auto totalParams = params[top].iValue;
+    top -= totalParams + 1;
 }
 
 void CPU::pfn_delete()
 {
-
+    auto totalParams = params[top].iValue;
+    top -= totalParams + 1;
 }
 
 //Random number generator constants.
@@ -517,7 +684,7 @@ void CPU::pfn_random()
     params[top-totalParams].Convert(INTEGER_VALUE);
     int64_t low = params[top-totalParams].iValue;
 
-    params[top-totalParams].Convert(INTEGER_VALUE);
+    params[top-totalParams+1].Convert(INTEGER_VALUE);
     int64_t high = params[top-totalParams+1].iValue;
 
     int64_t delta = (high + 1) - low;
@@ -541,6 +708,16 @@ void CPU::pfn_seed()
 
 CPU::method_function builtInMethods[] =
  {
+          &CPU::pfn_string_find,
+          &CPU::pfn_string_len,
+          &CPU::pfn_string_sub,
+          &CPU::pfn_string_replace,
+          &CPU::pfn_string_tolower,
+          &CPU::pfn_string_toupper,
+          &CPU::pfn_string_trimEnd,
+          &CPU::pfn_string_trimStart,
+          &CPU::pfn_string_toCollection,
+          &CPU::pfn_string_fromCollection,
          &CPU::pfn_abs,
          &CPU::pfn_acos,
          &CPU::pfn_asin,

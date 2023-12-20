@@ -38,7 +38,7 @@ bool SetManyKeys()
     for(int64_t ii=0; ii<total; ++ii)
     {
         char szTmp[128];
-        sprintf(szTmp, "This is string number %d", ii);
+        sprintf(szTmp, "This is string number %lld", ii);
         keys[ii].CopyFromCString(szTmp);
     }
 
@@ -81,7 +81,7 @@ bool ReplaceKeys(int64_t total)
     for(int64_t ii=0; ii<total; ++ii)
     {
         char szTmp[128];
-        sprintf(szTmp, "This is string number %d", ii);
+        sprintf(szTmp, "This is string number %lld", ii);
         keys[ii].CopyFromCString(szTmp);
     }
 
@@ -149,7 +149,7 @@ bool RemoveKeys(int64_t total)
     for(int64_t ii=0; ii<total; ++ii)
     {
         char szTmp[128];
-        sprintf(szTmp, "This is string number %d", ii);
+        sprintf(szTmp, "This is string number %lld", ii);
         keys[ii].CopyFromCString(szTmp);
     }
 
@@ -209,7 +209,7 @@ bool RunAllHashmapTests()
     RemoveKey();
     RemoveManyKeys();
 
-    printf("Total Hashmap Tests Run: %d, Total Passed: %d, Total Failed: %d\n", total_run, total_passed, total_failed);
+    printf("Total Hashmap Tests Run: %lld, Total Passed: %lld, Total Failed: %lld\n", total_run, total_passed, total_failed);
 
    return true;
 }

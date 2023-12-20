@@ -2702,9 +2702,11 @@ int64_t Lexer::CountFunctionArguments()
 TokenTypes Lexer::AddFunctionCall()
 {
     Token *function;
+    bool isStandardFunction = false;
     if ( standardFunctions.Exists(&fullFunName) )
     {
         function = standardFunctions.Get(&fullFunName);
+        isStandardFunction = true;
     }
     else
     {
@@ -2724,6 +2726,19 @@ TokenTypes Lexer::AddFunctionCall()
     {
         delete token;
         return INVALID_TOKEN;
+    }
+    if ( isStandardFunction )
+    {
+
+        if ( count < standardFunctionParams[function->value->operand] )
+        {
+            PrintIssue(2088, true, false,
+                       "Function %s requires at least %lld parameters",
+                       fullFunName.cStr(),
+                       standardFunctionParams[function->value->operand]);
+            delete token;
+            return INVALID_TOKEN;
+        }
     }
     token->value = new DslValue(count);
     if (!tokens.push_back(token) )
