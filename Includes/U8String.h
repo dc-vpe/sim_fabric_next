@@ -91,6 +91,8 @@ public:
     {
         buffer->Clear();
         ascii->Clear();
+        buffer->Set(0, 0);
+        ascii->Set(0,0);
     }
 
     void CopyFrom(U8String *u8String)

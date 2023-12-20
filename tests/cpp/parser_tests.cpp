@@ -7,6 +7,8 @@
 #include "../../Includes/parser.h"
 #include "../../Includes/CPU.h"
 
+extern void DisplayTokens();
+
 bool RunTest(const char *testScript,
              const char *testName,
              bool expectedResult = true,

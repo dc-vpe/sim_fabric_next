@@ -12,8 +12,6 @@
 #include "../Includes/Stack.h"
 #include "../Includes/List.h"
 
-extern void DisplayTokens();
-
 class CPU
 {
 public:
@@ -102,7 +100,9 @@ private:
     static void Error(DslValue *error);
     static bool IsMatch(u8chr ch, u8chr ex);
     static u8chr GetExChar(U8String *expression, int64_t &offset);
-    int64_t Find(U8String *search, U8String *expression, int64_t start);
+    static int64_t Find(U8String *search, U8String *expression, int64_t start);
+    static void Sub(U8String *search, U8String *result, int64_t start, int64_t length);
+    static int64_t ExpressionLength(U8String *expression);
 
 
 //Standard library function.

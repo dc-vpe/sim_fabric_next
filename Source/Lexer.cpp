@@ -3296,6 +3296,10 @@ bool Lexer::CheckIfFunctionDefined()
     }
 
     Token *t = functions.Get(&fullFunName);
+    if ( t == nullptr )
+    {
+        return false;
+    }
     return t->type == FUNCTION_DEF_BEGIN;
 }
 

@@ -9,6 +9,8 @@
 #include <cmath>
 #include <cctype>
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCDFAInspection"
 const char *OpCodeNames[] =
 {
        "NOP",    //No operation  NOP
@@ -235,7 +237,10 @@ int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
                 offset = 0;
                 break;
             }
-            return location;
+            if ( location > -1 )
+            {
+                return location;
+            }
         }
         else
         {
@@ -275,55 +280,280 @@ void CPU::pfn_string_find()
 void CPU::pfn_string_len()
 {
     auto totalParams = params[top].iValue;
+    params[top-totalParams].Convert(STRING_VALUE);
+    A->iValue = (int64_t)params[top-totalParams].sValue.Count();
+
     top -= totalParams;
+    params[top].LiteCopy(A);
+}
+
+void CPU::Sub(U8String *search, U8String *result, int64_t start, int64_t length)
+{
+    if ( start >= 0 && start < search->Count() )
+    {
+        for(int64_t ii=0; ii<length; ++ii)
+        {
+            u8chr ch = search->get(start+ii);
+            if ( ch == U8_NULL_CHR )
+            {
+                break;
+            }
+            result->push_back(ch);
+        }
+    }
+
 }
 
 void CPU::pfn_string_sub()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    //start
+    params[top-totalParams+1].Convert(INTEGER_VALUE);
+    int64_t start = params[top-totalParams+1].iValue;
+
+    //length
+    params[top-totalParams+2].Convert(INTEGER_VALUE);
+    int64_t length = params[top-totalParams+2].iValue;
+
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+    Sub(&search, &A->sValue, start, length);
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
+
+/// \desc Gets the character length of the expression.
+int64_t CPU::ExpressionLength(U8String *expression)
+{
+    int64_t length = 0;
+    u8chr ex = ' ';
+    int64_t offset = 0;
+    while( ex != U8_NULL_CHR )
+    {
+        ex = GetExChar(expression, offset);
+        if ( ex != U8_NULL_CHR )
+        {
+            ++length;
+        }
+    }
+
+    return length;
+}
+
 
 void CPU::pfn_string_replace()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    //expression
+    params[top-totalParams+1].Convert(STRING_VALUE);
+    U8String expression;
+    expression.CopyFrom(&params[top-totalParams+1].sValue);
+//
+    //replace
+    params[top-totalParams+2].Convert(STRING_VALUE);
+    U8String replace;
+    replace.CopyFrom(&params[top-totalParams+2].sValue);
+
+    int64_t start = 0;
+    int64_t location = 0;
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    while( location != -1 )
+    {
+        location = Find(&search, &expression, start);
+        if ( location != -1 )
+        {
+            U8String tmp;
+            int64_t length = ExpressionLength(&expression);
+            Sub(&search, &tmp, start, location-start);
+            A->sValue.Append(&tmp);
+            A->sValue.Append(&replace);
+            location += length - 1; //skip the replaced expression.
+            start = location;
+        }
+        else
+        {
+            U8String tmp;
+            Sub(&search, &tmp, start, (int64_t)search.Count());
+            A->sValue.Append(&tmp);
+        }
+    }
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
 
 void CPU::pfn_string_tolower()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    for(int64_t ii=0; ii<search.Count(); ++ii)
+    {
+        u8chr ch = search.get(ii);
+        ch = tolower((int)ch);
+        A->sValue.push_back(ch);
+    }
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
 
 void CPU::pfn_string_toupper()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    for(int64_t ii=0; ii<search.Count(); ++ii)
+    {
+        u8chr ch = search.get(ii);
+        ch = toupper((int)ch);
+        A->sValue.push_back(ch);
+    }
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
 
 void CPU::pfn_string_trimEnd()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    //expression
+    params[top-totalParams+1].Convert(STRING_VALUE);
+    U8String expression;
+    expression.CopyFrom(&params[top-totalParams+1].sValue);
+
+    int64_t offset = 0;
+    u8chr ex = GetExChar(&expression, offset);
+    bool copy = false;
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    for(int64_t ii=(int64_t)search.Count()-1; ii>=0; --ii)
+    {
+        u8chr ch = search.get(ii);
+        if ( copy )
+        {
+            A->sValue.push_back(ch);
+            continue;
+        }
+        if (IsMatch(ch, ex))
+        {
+            continue;
+        }
+        copy = true;
+        A->sValue.push_back(ch);
+    }
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
 
 void CPU::pfn_string_trimStart()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&params[top-totalParams].sValue);
+
+    //expression
+    params[top-totalParams+1].Convert(STRING_VALUE);
+    U8String expression;
+    expression.CopyFrom(&params[top-totalParams+1].sValue);
+
+    int64_t offset = 0;
+    u8chr ex = GetExChar(&expression, offset);
+    bool copy = false;
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    for(int64_t ii=0; ii<search.Count(); ++ii)
+    {
+        u8chr ch = search.get(ii);
+        if ( copy )
+        {
+            A->sValue.push_back(ch);
+            continue;
+        }
+        if (IsMatch(ch, ex))
+        {
+            continue;
+        }
+        copy = false;
+        A->sValue.push_back(ch);
+    }
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
 
 void CPU::pfn_string_toCollection()
 {
     auto totalParams = params[top].iValue;
+
+    //string to search
+    params[top-totalParams].Convert(STRING_VALUE);
+    U8String jsonString;
+    jsonString.CopyFrom(&params[top-totalParams].sValue);
+
+    JsonParser jp;
+    auto *json = jp.From(&params[top].variableScriptName, &jsonString);
+    if ( json->type == ERROR_TOKEN )
+    {
+        json->type = STRING_VALUE;
+        Error(json);
+    }
+
     top -= totalParams;
+    params[top].SAV(json);
 }
 
 void CPU::pfn_string_fromCollection()
 {
     auto totalParams = params[top].iValue;
+
+    A->type = STRING_VALUE;
+    params[top-totalParams].Convert(STRING_VALUE);
+    params[top-totalParams].AppendAsJsonText(&A->sValue);
+
     top -= totalParams;
+    params[top].LiteCopy(A);
 }
 
 void CPU::pfn_abs()
@@ -1404,3 +1634,4 @@ CPU::CPU()
     SP.clear();
     A = new DslValue();
 }
+#pragma clang diagnostic pop

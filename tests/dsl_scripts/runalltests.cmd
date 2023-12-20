@@ -60,3 +60,8 @@ dsl switch4.dsl
 dsl tab.dsl
 dsl whilewithvariablelimit.dsl
 dsl findexpression.dsl
+dsl string_len.dsl
+dsl string_sub.dsl
+dsl string_replace.dsl
+dsl string_toupper.dsl
+dsl string_tolower.dsl

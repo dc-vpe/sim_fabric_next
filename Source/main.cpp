@@ -433,7 +433,7 @@ char *cwd()
 
 int main(int argc, char *argv[])
 {
-    printf("DSL Version 0.6.75\n");
+    printf("DSL Version 0.7.0\n");
     printf("Working Folder %s\n", cwd());
 
     if ( argc < 2 )
