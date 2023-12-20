@@ -3,8 +3,6 @@ var b = 0;
 
 b = string.find(a, "%D%D%S%u", 11);
 
-//print(string.len(a));
-
 print(b);
 
 stop

@@ -59,3 +59,4 @@ dsl switch3.dsl
 dsl switch4.dsl
 dsl tab.dsl
 dsl whilewithvariablelimit.dsl
+dsl findexpression.dsl
