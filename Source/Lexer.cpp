@@ -761,6 +761,45 @@ bool Lexer::ProcessEscapeCharacter(u8chr ch, bool ignoreErrors)
     return true;
 }
 
+/// \desc Gets a string by including the characters between $" and "$ directly.
+bool Lexer::GetStringDirect(bool ignoreErrors)
+{
+    tmpValue->type = STRING_VALUE;
+    tmpValue->sValue.Clear();
+
+    //skip opening $.
+    locationInfo.Increment('$');
+    //skip opening double quote.
+    locationInfo.Increment('\"');
+    u8chr ch = '\"';
+
+    while( ch != U8_NULL_CHR )
+    {
+        ch = GetCurrent();
+        locationInfo.Increment(ch);
+        if ( ch == U8_NULL_CHR )
+        {
+            PrintIssue(2090,
+                       "End of script instead of \"$ end of string definition", true, true);
+            return false;
+        }
+        if ( ch != '\"' )
+        {
+            tmpValue->sValue.push_back(ch);
+            continue;
+        }
+        ch = GetCurrent();
+        locationInfo.Increment(ch);
+        if ( ch == '$' )
+        {
+            return true;
+        }
+        tmpValue->sValue.push_back(ch);
+    }
+
+    return false;
+}
+
 /// \desc Gets a string value from the code source.
 /// \return True if the string extraction is successful or false if an error occurs.
 bool Lexer::GetString(bool ignoreErrors)
@@ -774,9 +813,9 @@ bool Lexer::GetString(bool ignoreErrors)
     {
         u8chr ch = GetCurrent();
         locationInfo.Increment(ch);
-        if ((char)ch != '\\')
+        if (ch != '\\')
         {
-            if ( (char)ch == '\"')
+            if ( ch == '\"' )
             {
                 quotes++;
                 continue;
@@ -2566,6 +2605,8 @@ bool Lexer::CheckFunctionCallSyntax()
 {
     U8String tmp;
     tmp.CopyFrom(tmpBuffer);
+    U8String tmpFullFunctionName;
+    tmpFullFunctionName.CopyFrom(&fullFunName);
 
     LocationInfo start = locationInfo;
 
@@ -2598,6 +2639,7 @@ bool Lexer::CheckFunctionCallSyntax()
     {
         locationInfo = start;
         tmpBuffer->CopyFrom(&tmp);
+        fullFunName.CopyFrom(&tmpFullFunctionName);
         return true;
     }
     bool rc = ExpressionContinue(type);
@@ -2605,6 +2647,7 @@ bool Lexer::CheckFunctionCallSyntax()
     {
         locationInfo = start;
         tmpBuffer->CopyFrom(&tmp);
+        fullFunName.CopyFrom(&tmpFullFunctionName);
         return true;
     }
     PrintIssue(2044,
@@ -2627,11 +2670,42 @@ int64_t Lexer::CountFunctionArguments()
     bool empty = true;
     bool done = false;
 
+    U8String tmpFullFunctionName;
+
+    tmpFullFunctionName.CopyFrom(&fullFunName);
+
     while( !done )
     {
         type = GetNextTokenType(true);
         switch( type )
         {
+            case FUNCTION_CALL:
+                //Skip inner function call.
+                {
+                    int64_t p = 1;
+                    SkipNextTokenType();
+                    empty = false;
+                    while( p > 0 )
+                    {
+                        type = GetNextTokenType(true);
+                        switch(type)
+                        {
+                            case OPEN_PAREN:
+                                ++p;
+                                break;
+                            case CLOSE_PAREN:
+                                --p;
+                                break;
+                            case END_OF_SCRIPT:
+                                PrintIssue(2089, "Missing close paren in function call", true, false);
+                                return -1;
+                            default:
+                                break;
+                        }
+                    }
+                    break;
+                }
+                break;
             default:
                 empty = false;
                 break;
@@ -2693,6 +2767,8 @@ int64_t Lexer::CountFunctionArguments()
     {
         locationInfo = saved;
     }
+
+    fullFunName.CopyFrom(&tmpFullFunctionName);
 
     return arguments;
 }
@@ -3040,6 +3116,14 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors)
         {
             return ERROR_TOKEN;
         }
+    }
+    if (ch == '$' && PeekNextChar() == '\"' )
+    {
+        if (GetStringDirect(ignoreErrors))
+        {
+            return STRING_VALUE;
+        }
+        return ERROR_TOKEN;
     }
     if (ch == '\"')
     {

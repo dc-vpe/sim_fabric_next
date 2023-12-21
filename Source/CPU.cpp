@@ -515,7 +515,7 @@ void CPU::pfn_string_trimStart()
         {
             continue;
         }
-        copy = false;
+        copy = true;
         A->sValue.push_back(ch);
     }
 
@@ -549,7 +549,6 @@ void CPU::pfn_string_fromCollection()
     auto totalParams = params[top].iValue;
 
     A->type = STRING_VALUE;
-    params[top-totalParams].Convert(STRING_VALUE);
     params[top-totalParams].AppendAsJsonText(&A->sValue);
 
     top -= totalParams;

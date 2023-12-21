@@ -214,6 +214,7 @@ private:
     bool GetNumber(bool ignoreErrors);
     u8chr GetEscapeValue(int64_t factor);
     bool ProcessEscapeCharacter(u8chr ch, bool ignoreErrors);
+    bool GetStringDirect(bool ignoreErrors);
     bool GetString(bool ignoreErrors);
     int CheckFunctionNamedParameter();
     bool CheckFunctionDefinitionSyntax(Token *token);

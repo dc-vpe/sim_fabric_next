@@ -65,3 +65,7 @@ dsl string_sub.dsl
 dsl string_replace.dsl
 dsl string_toupper.dsl
 dsl string_tolower.dsl
+dsl string_trimStart.dsl
+dsl string_trimEnd.dsl
+dsl test_dollar_double_quote_strings.dsl
+dsl collection_to_string.dsl
