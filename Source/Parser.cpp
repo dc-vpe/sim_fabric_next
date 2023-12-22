@@ -623,14 +623,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                 output->Enqueue(token);
                 break;
             case FUNCTION_CALL_BEGIN:
-                ops.push_back(token);
-                break;
-            case FUNCTION_CALL_END:
-                while (ops.top() != 0 && ops.peek(1)->type != FUNCTION_CALL_BEGIN)
-                {
-                    output->Enqueue(ops.pop_back());
-                }
-                output->Enqueue(ops.pop_back());
+                token = ProcessFunctionCall(token);
                 break;
             case OPEN_PAREN:
                 ops.push_back(token);
