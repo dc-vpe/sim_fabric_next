@@ -1,6 +1,5 @@
 #include "../Includes/Opcodes.h"
 #include "../Includes/parser.h"
-#include "../Includes/cpu.h"
 
 extern void DisplayTokenAsText(int64_t index, TokenTypes type);
 
@@ -358,7 +357,7 @@ bool Parser::Parse()
                 program.push_back(new DslValue(JMP));
 
                 Token *funInfo = functions.Get(token->identifier);
-                funInfo->value->location = program.Count();;
+                funInfo->value->location = program.Count();
                 functions.Set(token->identifier, funInfo);
                 token = Advance();
                 break;
