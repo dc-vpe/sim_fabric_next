@@ -22,6 +22,7 @@ DslValue::DslValue()
     indexes = {};
     variableAddress = nullptr;
     jsonKey = {};
+    moduleId = -1;
 }
 
 DslValue::DslValue(int64_t i)
@@ -40,6 +41,7 @@ DslValue::DslValue(int64_t i)
     indexes = {};
     variableAddress = nullptr;
     jsonKey = {};
+    moduleId = -1;
 }
 
 DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
@@ -58,6 +60,7 @@ DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
     indexes = {};
     variableAddress = nullptr;
     jsonKey = {};
+    moduleId = -1;
 }
 
 DslValue::DslValue(DslValue *dslValue)
@@ -76,6 +79,7 @@ DslValue::DslValue(DslValue *dslValue)
     variableAddress = dslValue->variableAddress;
     indexes.CopyFrom(&dslValue->indexes);
     jsonKey.CopyFrom(&dslValue->jsonKey);
+    moduleId = dslValue->moduleId;
 }
 
 DslValue::DslValue(U8String *u8String)
@@ -92,6 +96,7 @@ DslValue::DslValue(U8String *u8String)
     indexes = {};
     variableAddress = nullptr;
     jsonKey = {};
+    moduleId = -1;
 }
 
 void DslValue::CopyCollection(DslValue *right)
@@ -104,6 +109,7 @@ void DslValue::CopyCollection(DslValue *right)
     bValue = right->bValue;
     jsonKey.CopyFrom(&right->jsonKey);
     indexes.Clear();
+    moduleId = right->moduleId;
     List<KeyData *> list;
     DslValue::GetKeyData(right, &list);
     for(int ii=0; ii<list.Count(); ++ii)

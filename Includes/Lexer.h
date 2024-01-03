@@ -225,6 +225,7 @@ private:
     bool ProcessFunctionDefinition(Token *token);
     bool DefineVariable();
     bool PushTmpValue(Stack<DslValue *> &values, DslValue *dslValue, int64_t &top);
+    LocationInfo GetExpressionEnd(bool ignoreErrors);
     bool ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool initializeVariable);
     bool ProcessStaticExpression(DslValue *dslValue, LocationInfo end, bool ignoreErrors, bool initializeVariable);
     bool DefineVariableAssignment(Token *token, bool isInnerCollection);

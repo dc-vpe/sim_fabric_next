@@ -34,7 +34,7 @@ enum OPCODES
     JIF,    //Jump if bValue is false
     JIT,    //Jump if bValue is true
     JBF,    //Jump to native subroutine.
-    JSR,    //Jump to _s subroutine.
+    JSR,    //Jump to script subroutine.
     RET,    //return to caller
     PSI,    //Push value
     PSV,    //push variable
@@ -60,7 +60,8 @@ enum OPCODES
     SUA,    //Subtract assign
     MUA,    //Multiply Assign
     DIA,    //Divide Assign
-    MOA     //Modulo Assign
+    MOA,    //Modulo Assign
+    ERH     //Error handler for script file
 };
 
 #endif //DSL_CPP_OPCODES_H

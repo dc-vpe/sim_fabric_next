@@ -62,11 +62,12 @@ const char *OpCodeNames[] =
        "DEL",    //Decrement local variable
        "PCV",    //Push collection value
        "PVA",    //Push variable address (works for variables and collections)
-       "ADA",     //Add assign.
+       "ADA",    //Add assign.
        "SUA",    //Subtract assign
        "MUA",    //Multiply Assign
        "DIA",    //Divide Assign
-       "MOA"     //Modulo Assign
+       "MOA",    //Modulo Assign
+       "ERH"     //Error handler for script file
 };
 
 void CPU::DisplayASMCodeLines()
@@ -101,7 +102,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case CTB: case RET: case END:
         case EXP: case MUL: case DIV: case SUB: case MOD: case ADD:
         case TEQ:  case TNE: case TGR:  case TGE: case TLS:
-        case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA:
+        case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA: case ERH:
             putchar('\t');
             break;
         case PVA:
@@ -1197,7 +1198,7 @@ void CPU::RunNoTrace()
         DslValue *dslValue = program[PC++];
         switch( dslValue->opcode )
         {
-            case DEF: case NOP: case END: case PSP:
+            case DEF: case NOP: case END: case PSP: case ERH:
                 break;
             case SLV:
                 params[BP+params[top - 1].operand].SAV(&params[top]);
@@ -1380,8 +1381,10 @@ void CPU::RunTrace()
         DslValue *dslValue = program[PC++];
         switch( dslValue->opcode )
         {
-            case DEF: case NOP: case END: case PSP:
+            case DEF:
                 printf(";top = %lld;\tvar %s", top, dslValue->variableName.cStr());
+                break;
+            case NOP: case END: case PSP: case ERH:
                 break;
             case SLV:
             {
@@ -1633,4 +1636,5 @@ CPU::CPU()
     SP.clear();
     A = new DslValue();
 }
+
 #pragma clang diagnostic pop

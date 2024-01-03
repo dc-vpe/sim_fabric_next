@@ -24,6 +24,19 @@ public:
         delete A;
     }
 
+    void HandleError(const char *msg)
+    {
+        params[++top].type = STRING_VALUE;
+        params[top].sValue.CopyFromCString(msg);
+        params[++top].type = INTEGER_VALUE;
+        params[top].iValue = 1;
+        JumpToSubroutineNoTrace(program[1+1]);
+    }
+
+    static void RaiseError(const char *msg)
+    {
+    }
+
     /// \desc Displays the lines of code in the program.
     static void DisplayASMCodeLines();
 

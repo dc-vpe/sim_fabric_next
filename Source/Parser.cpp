@@ -36,13 +36,14 @@ Token *Parser::PushValue(Token *token)
 {
     DslValue *value;
 
-    if ( token->type != VARIABLE_VALUE && token->type != COLLECTION_VALUE )
+    if ( token->type != VARIABLE_VALUE && token->type != COLLECTION_VALUE && token->type != VARIABLE_ADDRESS )
     {
         //push direct value onto the param stack.
         value = new DslValue(token->value);
         value->opcode = PSI;
         if ( program.push_back(value) )
         {
+            program[program.Count()-1]->moduleId = token->value->moduleId;
             return token;
         }
         return nullptr;
@@ -71,6 +72,7 @@ Token *Parser::PushValue(Token *token)
 #endif
     if ( program.push_back(value) )
     {
+        program[program.Count()-1]->moduleId = token->value->moduleId;
         return token;
     }
 
@@ -96,6 +98,7 @@ Token *Parser::CreateVariable(Token *token)
     token->value->operand = var->operand;
     variables.Set(&token->value->variableName, token);
     program.push_back(var);
+    program[program.Count()-1]->moduleId = token->value->moduleId;
     return token;
 }
 
@@ -128,10 +131,13 @@ Token *Parser::ProcessFunctionCall(Token *token)
     dslCount->iValue = (int64_t)totalParams;
     dslCount->opcode = PSI;
     program.push_back(dslCount);
+    program[program.Count()-1]->moduleId = token->value->moduleId;
 
     if ( standardFunctions.Exists(&id) )
     {
-        program.push_back(new DslValue(JBF, standardFunctions.Get(&id)->value->operand));
+        auto *dslValue = new DslValue(JBF, standardFunctions.Get(&id)->value->operand);
+        program.push_back(dslValue);
+        program[program.Count()-1]->moduleId = token->value->moduleId;
     }
     else
     {
@@ -142,6 +148,7 @@ Token *Parser::ProcessFunctionCall(Token *token)
         //if location is 0 will be fixed up post parse.
         dslValue->location = funInfo->value->location;
         program.push_back(dslValue);
+        program[program.Count()-1]->moduleId = token->value->moduleId;
     }
 
     return next;
@@ -152,7 +159,9 @@ Token *Parser::ProcessSwitchStatement(Token *token)
     Expression(EXIT_SWITCH_COND_END);
     int64_t switchCasesStartIndex = position;
     auto *jumpTableInstruction = new DslValue(JTB, token->totalCases);
+
     program.push_back(jumpTableInstruction);
+    program[program.Count()-1]->moduleId = token->value->moduleId;
 
     int64_t checkValuesStartIndex = program.Count();
 
@@ -166,6 +175,7 @@ Token *Parser::ProcessSwitchStatement(Token *token)
         {
         }
         program.push_back(new DslValue(Advance()->value));
+        program[program.Count()-1]->moduleId = token->value->moduleId;
     }
 
     //Add the openBlocks for each case
@@ -176,9 +186,9 @@ Token *Parser::ProcessSwitchStatement(Token *token)
         {
         }
         program[checkValuesStartIndex + ii]->location = program.Count();
-        Expression(EXIT_CASE_BLOCK_END);
+        Token *tt = Expression(EXIT_CASE_BLOCK_END);
         jumpToExit.push_back(program.Count());
-        program.push_back(new DslValue(JMP));
+        program.push_back(new DslValue(tt->value));
     }
 
     //If there is a default case
@@ -307,6 +317,7 @@ Token *Parser::CreateOperation(Token *token)
             program.push_back(new DslValue(CTB));
             break;
     }
+    program[program.Count()-1]->moduleId = token->value->moduleId;
 
     return token;
 }
@@ -326,16 +337,48 @@ bool Parser::Parse()
     program.Clear();
 
     position = 0;
-    //Forces program to start on an odd instruction location.
+    //Forces program to start on a non 0 instruction.
     //This allows 0 for a function location to be used as an indicator that
     //the function definition has not been encountered yet.
-    program.push_back(new DslValue(NOP));
+    program.push_back(new DslValue(JMP));
+    program[0]->moduleId = tokens[0]->value->moduleId;
 
     if ( tokens.Count() == 0 )
     {
         program.push_back(new DslValue(END));
+        program[program.Count()-1]->moduleId = tokens[0]->value->moduleId;
+        program[0]->location = program.Count();
         return true;
     }
+
+//    for(int ii=0; ii<modules.Count(); ++ii)
+//    {
+//        program.push_back(new DslValue());
+//        program[program.Count()-1]->moduleId = ii+1;
+//        U8String tmp;
+//        tmp.Clear();
+//        tmp.CopyFromCString("TMLocalScope.");
+//        tmp.push_back(modules[ii]->Name());
+//        tmp.push_back('.');
+//        tmp.Append("OnError");
+//        program[program.Count()-1]->variableName.CopyFrom(&tmp);
+//        Token *funInfo = functions.Get(&tmp);
+//        if ( funInfo == nullptr )
+//        {
+//            funInfo = new Token();
+//
+//        }
+//
+//        funInfo->value->location = program.Count();
+//        funInfo->value->moduleId = ii+1;
+//        funInfo->identifier->CopyFrom(&tmp);
+//        functions.Set(funInfo->identifier, funInfo);
+//        program[program.Count()-1]->opcode = JBF;
+//        program[program.Count()-1]->operand = PRINT_FUNCTION_ID;
+//        program[program.Count()-1]->moduleId = ii+1;
+//    }
+
+    program[0]->location = program.Count();
 
     Token *token = Peek(position);
 
@@ -355,6 +398,7 @@ bool Parser::Parse()
             {
                 jumpLocations.push_back(program.Count());
                 program.push_back(new DslValue(JMP));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
 
                 Token *funInfo = functions.Get(token->identifier);
                 funInfo->value->location = program.Count();
@@ -364,6 +408,7 @@ bool Parser::Parse()
             }
             case FUNCTION_DEF_END:
                 program.push_back(new DslValue(RET));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 program[jumpLocations.pop_back()]->location = program.Count();
                 token = Advance();
                 break;
@@ -376,6 +421,7 @@ bool Parser::Parse()
             case IF_COND_END:
                 jumpLocations.push_back(program.Count());
                 program.push_back(new DslValue(JIF));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 token = Advance();
                 break;
             case IF_BLOCK_BEGIN:
@@ -396,6 +442,7 @@ bool Parser::Parse()
             case ELSE_BLOCK_BEGIN:
                 jumpLocations.push_back(program.Count());
                 program.push_back(new DslValue(JMP));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 token = Advance();
                 break;
             case ELSE_BLOCK_END:
@@ -408,6 +455,7 @@ bool Parser::Parse()
                 break;
             case WHILE_COND_END:
                 program.push_back(new DslValue(JIT, 0, jumpLocations.pop_back() + 1));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 token = Advance();
                 break;
             case WHILE_BLOCK_BEGIN:
@@ -415,6 +463,7 @@ bool Parser::Parse()
                 jumpLocations.push_back(program.Count());
                 jumpLocations.push_back(program.Count());
                 program.push_back(new DslValue(JMP));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 token = Advance();
                 break;
             case WHILE_BLOCK_END:
@@ -433,6 +482,7 @@ bool Parser::Parse()
             case FOR_COND_END:
                 jumpLocations.push_back(program.Count());
                 program.push_back(new DslValue(JIF));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 token = Advance();
                 break;
             case FOR_BLOCK_BEGIN:
@@ -447,6 +497,7 @@ bool Parser::Parse()
                 program[jumpLocations.pop_back()]->location = program.Count() + 1;
                 //Set jump back to conditional check
                 program.push_back(new DslValue(JMP, 0, jumpLocations.pop_back()));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 token = Advance();
                 break;
             case SWITCH_BEGIN:
@@ -458,6 +509,7 @@ bool Parser::Parse()
             case RETURN:
                 token = Expression(EXIT_SEMICOLON_COMMA);
                 program.push_back(new DslValue(RET));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
                 break;
             default:
                 token = Expression(EXIT_SEMICOLON_COMMA);
@@ -474,6 +526,7 @@ bool Parser::Parse()
     }
 
     program.push_back(new DslValue(END));
+    program[program.Count()-1]->moduleId = token->value->moduleId;
 
     bool result = true;
 
@@ -592,6 +645,9 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
     {
         switch (token->type)
         {
+            case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
+                PushValue(token);   //appears on the left side of an assignment expression.
+                break;
             default:
                 if (token->is_value())
                 {
@@ -616,8 +672,8 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                 }
                 break;
             case VARIABLE_DEF:
-            case PARAMETER_VALUE:
             case VARIABLE_VALUE:
+            case PARAMETER_VALUE:
             case COLLECTION_VALUE:
                 output->Enqueue(token);
                 break;
@@ -714,11 +770,13 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
             dslCount->iValue = (int64_t)totalParams;
             dslCount->opcode = PSI;
             program.push_back(dslCount);
+            program[program.Count()-1]->moduleId = token->value->moduleId;
             auto id = U8String(t->identifier);
 
             if ( standardFunctions.Exists(&id) )
             {
                 program.push_back(new DslValue(JBF, standardFunctions.Get(&id)->value->operand));
+                program[program.Count()-1]->moduleId = token->value->moduleId;
             }
             else
             {
@@ -729,6 +787,7 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
                 //if location is 0 will be fixed up post parse.
                 dslValue->location = funInfo->value->location;
                 program.push_back(dslValue);
+                program[program.Count()-1]->moduleId = token->value->moduleId;
             }
             continue;
         }
@@ -761,6 +820,7 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
                 }
             }
             program.push_back(dslValue);
+            program[program.Count()-1]->moduleId = token->value->moduleId;
             if ( t->type == PREFIX_DEC || t->type == PREFIX_INC )
             {
                 //If no more operations after dec or inc then the dec or inc is terminal for the expression.
@@ -776,11 +836,19 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
             auto *dslValue = new DslValue(PSL, t->value->operand);
             dslValue->variableName.CopyFrom(t->identifier);
             program.push_back(dslValue);
+            program[program.Count()-1]->moduleId = token->value->moduleId;
             continue;
         }
         else if ( t->type == VARIABLE_DEF )
         {
             CreateVariable(t);
+            continue;
+        }
+        else if ( t->type == VARIABLE_ADDRESS )
+        {
+            auto *d = new DslValue(t->value);
+            d->opcode = PVA;
+            program.push_back(d);
             continue;
         }
         else if ( t->type == VARIABLE_VALUE || t->type == COLLECTION_VALUE )
@@ -821,6 +889,7 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
                 dslValue->opcode = SAV;
             }
             program.push_back(dslValue);
+            program[program.Count()-1]->moduleId = token->value->moduleId;
             continue;
         }
         else if ( t->is_op() )

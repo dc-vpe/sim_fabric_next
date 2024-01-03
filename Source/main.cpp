@@ -30,7 +30,7 @@ extern void RunLexerTests();
 /// in error and warning messages.
 const char *tokenNames[] =
 {
-    "INVALID_TOKEN",
+    "VALID_TOKEN",
     "OPEN_BLOCK",
     "CLOSE_BLOCK",
     "OPEN_PAREN",
@@ -151,7 +151,8 @@ const char *tokenNames[] =
     "COLLECTION_VALUE",
     "KEY_BEGIN",
     "KEY_END",
-    "STOP"
+    "STOP",
+    "VARIABLE_ADDRESS",
 };
 
 /// \desc Displays the token type along with its index and _n.

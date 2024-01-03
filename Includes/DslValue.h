@@ -90,6 +90,9 @@ public:
     /// \desc key name when parsing a json file.
     U8String jsonKey;
 
+    /// \desc id of the module this instruction is part of.
+    int64_t moduleId;
+
     /// \desc Copies the right dslValue to this one.
     /// \param right DslValue containing the data to copy.
     void SAV(DslValue *right);

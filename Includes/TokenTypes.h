@@ -215,7 +215,8 @@ enum TokenTypes
     , COLLECTION_VALUE     = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(118)
     , KEY_BEGIN            = TOKEN_PARSER    | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(119)
     , KEY_END              = TOKEN_PARSER    | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(120)
-    , STOP                 = TOKEN_LEXER     | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(120)
+    , STOP                 = TOKEN_LEXER     | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(121)
+    , VARIABLE_ADDRESS     = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(122)
 };
 
 #endif //DSL_CPP_TOKEN_TYPES_H

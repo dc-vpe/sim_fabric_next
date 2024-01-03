@@ -8,6 +8,9 @@
 #include "WarningLevels.h"
 #include "LocationInfo.h"
 
+/// \desc Raises an issue via the on error handling system.
+void RaiseIssue(int64_t module, int64_t number, bool error, bool fatalError, const char *format, ...);
+
 /// \desc Prints error and warning messages along with the tok parse line and column,
 /// and updates error and warning variables.
 /// \param number Error or warning number.

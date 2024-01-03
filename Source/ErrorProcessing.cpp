@@ -5,6 +5,7 @@
 #include <cstdarg>
 #include "../Includes/ErrorProcessing.h"
 #include "../Includes/ParseData.h"
+#include "../Includes/CPU.h"
 
 static char szLastErrorMessage[2048] = {'\0'};
 static char szErrorMessage[2048] = {'\0'};
@@ -26,7 +27,7 @@ void PrintIssue(int64_t number, const char *msg, bool error, bool fatalError)
 {
     fatal = fatalError;
 
-    if ( error == false && warningLevel == WarningLevel0 )
+    if (!error && warningLevel == WarningLevel0 )
     {
         return;
     }
@@ -46,22 +47,24 @@ void PrintIssue(int64_t number, const char *msg, bool error, bool fatalError)
     printedIssues.push_back(new U8String(msg));
 
     //if a run time error no line and column
-    if ( number >= 4000 )
+    if ( number >= 4000 && number <= 5000)
     {
         sprintf(szErrorMessage, "Run Error(%lld): %s\n", number, msg);
+        CPU::RaiseError(szErrorMessage);
     }
     else
     {
         sprintf(szErrorMessage,
                 "%s(%lld): %s at line %lld, column %lld\n", ((error) ? "Error" : "Warning"),
                 number, msg, locationInfo.line, locationInfo.column);
+
+        if ( strcmp(szErrorMessage, szLastErrorMessage) != 0 )
+        {
+            strcpy_s(szLastErrorMessage, szErrorMessage);
+            printf("%s", szErrorMessage);
+        }
     }
 
-    if ( strcmp(szErrorMessage, szLastErrorMessage) != 0 )
-    {
-        strcpy_s(szLastErrorMessage, szErrorMessage);
-        printf("%s", szErrorMessage);
-    }
 
     if ( error )
     {

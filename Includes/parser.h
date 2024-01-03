@@ -6,6 +6,11 @@
 #include "Lexer.h"
 #include "Queue.h"
 
+/// \desc Index which is the id of the built-in print function. Used as default on error if
+///       on error is not defined for the module.
+#define PRINT_FUNCTION_ID 29
+
+
 /// \desc Defines the parser component. The parser is a LR recursive descent parser.
 class Parser
 {

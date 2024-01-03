@@ -14,7 +14,7 @@ private:
     U8String *_n;
     U8String *_f;
     U8String *_s;
-    bool     _l;
+    U8String *_e;
 public:
 
     /// \desc Module, i.e. class name, of this module.
@@ -26,18 +26,24 @@ public:
     /// \desc Gets the script associated with this module.
     U8String *Script() { return _s; }
 
-    /// \desc Get the lexed state of the module.
-    [[maybe_unused]] [[nodiscard]] bool IsLexed() const { return _l; }
+    /// \desc Gets the full name of the on error function if the script has one defined.
+    U8String *OnError() { return _e; }
 
     /// \desc Creates a new Module with default values.
-    Module() : _n(new U8String("")), _f(new U8String("")), _s(new U8String("")), _l(false) { };
+    Module() : _n(new U8String("")),
+               _f(new U8String("")),
+               _s(new U8String("")),
+               _e(new U8String("")) { };
 
     /// \desc Creates a new Module with the provided _n, _f, _s.
     /// \param name Name of the module.
     /// \param file Complete _f _n path of the _s _f.
     /// \param script Raw _s _f, may be in UTF8 or ASCII format.
     Module(const char *name, const char *file, const char *script) :
-        _n(new U8String(name)), _f(new U8String(file)), _s(new U8String(script)), _l(false) { };
+               _n(new U8String(name)),
+               _f(new U8String(file)),
+               _s(new U8String(script)),
+               _e(new U8String("")) { };
 
     /// \desc Releases the memory used by the module.
     ~Module()
@@ -45,6 +51,7 @@ public:
         delete _n;
         delete _f;
         delete _s;
+        delete _e;
     }
 };
 

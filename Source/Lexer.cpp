@@ -956,6 +956,8 @@ bool Lexer::ValidateAndGetFullName(Token *token, bool ignoreErrors)
 /// \return True if successful, false if an error occurs.
 bool Lexer::ProcessFunctionDefinition(Token *token)
 {
+    //Check if this function is a signal handler
+    //OnError, OnMouse, OnKey, OnTick
     currentFunction.CopyFrom(token->identifier);
     LocationInfo start = locationInfo;
     bool rc = CheckFunctionDefinitionSyntax(token);
@@ -1392,14 +1394,11 @@ bool Lexer::PushTmpValue(Stack<DslValue *> &values, DslValue *dslValue, int64_t 
     return true;
 }
 
-/// \desc Scans an expression within a collection definition time and either assigns the result
-///       to the token or generates an error if the expression can't be evaluated at lex time.
-/// \param dslValue Pointer to the dsl value to be updated with the result of the calculation.
+/// \desc Scans a variable assignment expression looking for the end of the expression.
 /// \param ignoreErrors If true then normal error processing occurs, else error generation except
 ///                      for fatal errors are ignored.
-/// \param initializeVariable If true a collection or variable is being initialized with an expression
-///                           else false.
-bool Lexer::ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool initializeVariable)
+/// \return Location Info the expression ends at.
+LocationInfo Lexer::GetExpressionEnd(bool ignoreErrors)
 {
     LocationInfo start;
     LocationInfo end;
@@ -1416,7 +1415,20 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool 
     end = locationInfo;
     locationInfo = start;
 
-    return ProcessStaticExpression(dslValue, end, ignoreErrors, initializeVariable);
+    return end;
+}
+
+/// \desc Scans an expression within a collection definition time and either assigns the result
+///       to the token or generates an error if the expression can't be evaluated at lex time.
+/// \param dslValue Pointer to the dsl value to be updated with the result of the calculation.
+/// \param ignoreErrors If true then normal error processing occurs, else error generation except
+///                      for fatal errors are ignored.
+/// \param initializeVariable If true a collection or variable is being initialized with an expression
+///                           else false.
+/// \return True if successful, or false if an error occurs.
+bool Lexer::ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool initializeVariable)
+{
+    return ProcessStaticExpression(dslValue, GetExpressionEnd(ignoreErrors), ignoreErrors, initializeVariable);
 }
 
 /// \desc Scans an expression within a collection definition time and either assigns the result
@@ -2575,6 +2587,8 @@ bool Lexer::AddVariableValue()
     //Assignments need the address of the variable not the value.
     if (IS_ASSIGNMENT_TOKEN(PeekNextTokenType()))
     {
+        token->type = VARIABLE_ADDRESS;
+        token->value->type = VARIABLE_ADDRESS;
         token->value->opcode = PVA;
     }
 
@@ -3600,6 +3614,8 @@ bool Lexer::Lex(int64_t id)
     varSpecified = false;
     constSpecified = false;
 
+    int64_t start = tokens.Count();
+
     if ( id < 1 || id > modules.Count() )
     {
         PrintIssue(2059, "Module does not exist. Modules are added with AddModule", true, true);
@@ -3633,6 +3649,11 @@ bool Lexer::Lex(int64_t id)
         }
 
         type = GenerateTokens(type);
+    }
+
+    for(int64_t ii=start; ii<tokens.Count(); ++ii)
+    {
+        tokens[ii]->value->moduleId = id;
     }
 
     return errors == 0 && warnings == 0;
@@ -3808,7 +3829,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
                            prev->value->variableName.cStr());
                 return ERROR_TOKEN;
             }
-            if ( !IS_ASSIGN_TYPE(prev->type) && prev->type != COLLECTION_VALUE )
+            if ( !IS_ASSIGN_TYPE(prev->type) && prev->type != COLLECTION_VALUE && prev->type != VARIABLE_ADDRESS )
             {
                 PrintIssue(2063, "Assignment attempted to something other than a variable", true);
                 return ERROR_TOKEN;
