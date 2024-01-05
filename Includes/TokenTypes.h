@@ -82,12 +82,16 @@ enum DSL_TOKEN_OPERATIONS
 /// \desc array of the value names arranged in id order. There is one _n for each defined value.
 extern const char *tokenNames[];
 
+/// \desc Checks if the token type is an assignment type
 #define IS_ASSIGNMENT_TOKEN(token_type) ( (token_type) == ASSIGNMENT ||\
                                           (token_type) == ADD_ASSIGNMENT ||\
                                           (token_type) == SUBTRACT_ASSIGNMENT ||\
                                           (token_type) == MULTIPLY_ASSIGNMENT ||\
                                           (token_type) == DIVIDE_ASSIGNMENT ||\
                                           (token_type) == MODULO_ASSIGNMENT )
+
+/// \desc Checks if the token type is a statement type
+#define IS_STATEMENT(token_stmt_type)  (((token_stmt_type)&SPECIFIC_USE_MASK) == TOKEN_STATEMENT)
 
 
 /// \desc Token types are a set of bit flags packed uint32_t value that defines all of the
@@ -217,6 +221,7 @@ enum TokenTypes
     , KEY_END              = TOKEN_PARSER    | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(120)
     , STOP                 = TOKEN_LEXER     | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(121)
     , VARIABLE_ADDRESS     = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(122)
+    , COLLECTION_ADDRESS   = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(123)
 };
 
 #endif //DSL_CPP_TOKEN_TYPES_H

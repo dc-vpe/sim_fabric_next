@@ -1,5 +1,5 @@
 //
-// Created by krw10 on 8/25/2023.
+// Created by krw10 on 8/25/2024.
 //
 //
 
@@ -74,6 +74,13 @@ public:
     /// \param newEnd New end of the collection.
     static void ExtendCollection(DslValue *collection, int64_t newEnd);
 
+    /// \desc Sets the collection element referenced in the dsl value with the value on
+    ///       the top of the parameter stack. This is used when dynamically initializing
+    ///       a collection with non-static expressions.
+    /// \param dslValue Pointer to the dslValue value that contains the collection and
+    ///                 element to set information.
+    void SetCollectionElementDirect(DslValue *dslValue);
+
     /// \desc Gets the referenced element in a collection.
     /// \param dslValue Pointer to the dslValue containing the collection.
     /// \return The referenced element in the collection.
@@ -109,9 +116,9 @@ private:
     int64_t        top;   //top of params stack
     DslValue       *A;  //Temporary A register storage.
 
-    bool Read(DslValue *file);
+    static bool ReadFile(U8String *file, U8String *output);
     static void Error(DslValue *error);
-    static bool IsMatch(u8chr ch, u8chr ex);
+    static bool IsMatch(u8chr ch, u8chr ex, bool caseLessCompare);
     static u8chr GetExChar(U8String *expression, int64_t &offset);
     static int64_t Find(U8String *search, U8String *expression, int64_t start);
     static void Sub(U8String *search, U8String *result, int64_t start, int64_t length);
@@ -120,6 +127,27 @@ private:
 
 //Standard library function.
 public:
+    /// \desc First call gets the total number of parameters passed to the function.
+    /// \return Gets the total number of parameters passed to the external function.
+    /// \Remark These functions form the API for accessing parameters passed to an
+    ///         external function.
+    int64_t GetTotalParams();
+
+    /// \desc Gets a parameter passed to the external function.
+    /// \param totalParams total number of parameters passed to the function, this
+    ///                    value is returned from Get Total Parameters.,
+    /// \param index       Index of the parameter to get. Parameters begin at 0
+    ///                    and are passed from left to right in CDECL style.
+    DslValue *GetParam(int64_t totalParams, int64_t index);
+
+    /// \desc Returns the provided result to the run time.
+    /// \param totalParams total number of parameters passed to the function, this
+    ///                    value is returned from Get Total Parameters.,
+    /// \param returnValue Pointer to the dslValue to return from the function. If
+    ///                    the external function does not return a value then this
+    ///                    should be set to INTEGER_VALUE of 0.
+    void ReturnResult(int64_t totalParams, DslValue *returnValue);
+
     void pfn_string_find();
     void pfn_string_len();
     void pfn_string_sub();

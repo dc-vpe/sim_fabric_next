@@ -83,9 +83,13 @@ public:
     /// \desc Indexes into the collection for collection elements.
     Collection indexes;
 
-    /// \desc Sav operations this contains the address of the dsl value to update.
-    ///       This value is set at run time from the push variable address opcode.
-    DslValue *variableAddress;
+    /// \desc Points at the memory address of this variable, collection, or collection element. This is set
+    ///       by push variable address and create variable. It is used when saving the variables value.
+    DslValue *elementAddress;
+
+    /// \desc Contains the assigned memory address of the variable or collection. Set when the variable is
+    ///       created and is not changed.
+    DslValue *address;
 
     /// \desc key name when parsing a json file.
     U8String jsonKey;

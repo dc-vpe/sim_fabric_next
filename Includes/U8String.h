@@ -5,6 +5,7 @@
 #ifndef DSL_UTF8STRING_H
 #define DSL_UTF8STRING_H
 
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -177,6 +178,51 @@ public:
         for(int64_t ii=0; ii<buffer->Count(); ++ii)
         {
             *data++ = buffer->get(ii);
+        }
+
+        return true;
+    }
+
+    /// \desc Checks if the U8String ends with the cString
+    /// \param cString C format string containing the characters to check for.
+    /// \param ignoreCase True if the check should ignore case, else false.
+    /// \return True if the string ends with the U8String, else false.
+    bool EndsWith(U8String *u8String, bool ignoreCase)
+    {
+        return EndsWith(u8String->cStr(), ignoreCase);
+    }
+
+    /// \desc Checks if the U8String ends with the cString
+    /// \param cString C format string containing the characters to check for.
+    /// \param caseless True if the check should ignore case, else false.
+    /// \return True if the string ends with the U8String, else false.
+    bool EndsWith(const char *cString, bool ignoreCase)
+    {
+        auto len = (int64_t)strlen(cString);
+        auto c = (int64_t)Count();
+        auto s = c - len;
+        if ( s < 0 )
+        {
+            return false;
+        }
+        for(int64_t ii=0; ii<len; ++ii)
+        {
+            u8chr ch = get(s+ii);
+
+            if ( ignoreCase )
+            {
+                if (tolower((int)ch) != tolower(cString[ii]))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if ( ch != cString[ii] )
+                {
+                    return false;
+                }
+            }
         }
 
         return true;

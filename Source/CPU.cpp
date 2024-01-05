@@ -8,66 +8,68 @@
 #include "../Includes/JsonParser.h"
 #include <cmath>
 #include <cctype>
+#include <dirent.h>
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
 const char *OpCodeNames[] =
 {
-       "NOP",    //No operation  NOP
-       "DEF",    //Define a variable
-       "SAV",    //Save to variable
-       "EXP",    //Exponent
-       "MUL",    //multiply
-       "DIV",    //divide
-       "ADD",    //add
-       "SUB",    //subtract
-       "MOD",    //modulo
-       "XOR",    //exclusive or
-       "BND",    //bitwise and
-       "BOR",    //bitwise or
-       "INC",    //increment
-       "DEC",    //decrement
-       "NOT",    //invert
-       "NEG",    //multiply by -1
-       "SVL",    //shift left
-       "SVR",    //shift right
-       "CTI",    //convert to integer
-       "CTD",    //convert to double
-       "CTC",    //convert to char
-       "CTS",    //convert to string
-       "CTB",    //convert to bool
-       "JMP",    //Jump always
-       "JIF",    //Jump if bValue is false
-       "JIT",    //Jump if bValue is true
-       "JBF",    //Jump to native subroutine.
-       "JSR",    //Jump to _s subroutine.
-       "RET",    //return to caller
-       "PSI",    //Push value
-       "PSV",    //push variable
-       "END",    //End program
-       "TEQ",    //test if equal
-       "TNE",    //test if not equal
-       "TGR",    //test if greater than
-       "TGE",    //test if greater than or equal
-       "TLS",    //test if less than
-       "TLE",    //test if less than or equal
-       "AND",    //logical and
-       "LOR",    //logical or
-       "JTB",    //Switch jump table, operand contains total entries.
-       "DFL",    //Define local variable
-       "PSL",    //Push local variable
-       "SLV",    //Save local variable
-       "PSP",    //Push parameter
-       "INL",    //Increment local variable
-       "DEL",    //Decrement local variable
-       "PCV",    //Push collection value
-       "PVA",    //Push variable address (works for variables and collections)
-       "ADA",    //Add assign.
-       "SUA",    //Subtract assign
-       "MUA",    //Multiply Assign
-       "DIA",    //Divide Assign
-       "MOA",    //Modulo Assign
-       "ERH"     //Error handler for script file
+        "NOP",    //No operation  NOP
+        "DEF",    //Define a variable
+        "SAV",    //Save to variable
+        "EXP",    //Exponent
+        "MUL",    //multiply
+        "DIV",    //divide
+        "ADD",    //add
+        "SUB",    //subtract
+        "MOD",    //modulo
+        "XOR",    //exclusive or
+        "BND",    //bitwise and
+        "BOR",    //bitwise or
+        "INC",    //increment
+        "DEC",    //decrement
+        "NOT",    //invert
+        "NEG",    //multiply by -1
+        "SVL",    //shift left
+        "SVR",    //shift right
+        "CTI",    //convert to integer
+        "CTD",    //convert to double
+        "CTC",    //convert to char
+        "CTS",    //convert to string
+        "CTB",    //convert to bool
+        "JMP",    //Jump always
+        "JIF",    //Jump if bValue is false
+        "JIT",    //Jump if bValue is true
+        "JBF",    //Jump to native subroutine.
+        "JSR",    //Jump to script subroutine.
+        "RET",    //return to caller
+        "PSI",    //Push value
+        "PSV",    //push variable
+        "END",    //End program
+        "TEQ",    //test if equal
+        "TNE",    //test if not equal
+        "TGR",    //test if greater than
+        "TGE",    //test if greater than or equal
+        "TLS",    //test if less than
+        "TLE",    //test if less than or equal
+        "AND",    //logical and
+        "LOR",    //logical or
+        "JTB",    //Switch jump table, operand contains total entries.
+        "DFL",    //Define local variable
+        "PSL",    //Push local variable
+        "SLV",    //Save local variable
+        "PSP",    //Push parameter
+        "INL",    //Increment local variable
+        "DEL",    //Decrement local variable
+        "PCV",    //Push collection value
+        "PVA",    //Push variable address (works for variables and collections)
+        "ADA",    //Add assign.
+        "SUA",    //Subtract assign
+        "MUA",    //Multiply Assign
+        "DIA",    //Divide Assign
+        "MOA",    //Modulo Assign
+        "ERH",    //Error handler for script file
+        "DCS"     //Save non-static result in a collection during definition
 };
 
 void CPU::DisplayASMCodeLines()
@@ -105,7 +107,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA: case ERH:
             putchar('\t');
             break;
-        case PVA:
+        case PVA: case DCS:
             printf("\t&%s", dslValue->variableName.cStr());
             break;
         case PCV:
@@ -165,7 +167,7 @@ void CPU::Error(DslValue *dslError)
     dslError->Print(false);
 }
 
-bool CPU::IsMatch(u8chr ch, u8chr ex)
+bool CPU::IsMatch(u8chr ch, u8chr ex, bool caseLessCompare)
 {
     switch( ex )
     {
@@ -207,6 +209,7 @@ int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
     }
 
     int64_t offset = 0;
+    bool caselessCompare = false;
     int64_t location = -1;
     int64_t current = start;
     auto end = (int64_t)search->Count();
@@ -214,7 +217,7 @@ int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
     {
         u8chr ch = search->get(current++);
         u8chr ex = GetExChar(expression, offset);
-        if ( IsMatch(ch, ex) )
+        if ( IsMatch(ch, ex, caselessCompare) )
         {
             location = current-1;
             int64_t pos = current;
@@ -230,7 +233,7 @@ int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
                 {
                     return -1;
                 }
-                if (IsMatch(ch, ex))
+                if (IsMatch(ch, ex, caselessCompare))
                 {
                     continue;
                 }
@@ -253,39 +256,62 @@ int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
     return -1;
 }
 
-void CPU::pfn_string_find()
+/// \desc Gets the total parameters sent to a function.
+/// \return The total parameters sent to a function.
+/// \remark The last value pushed onto the param stack is always the
+///         number of parameters passed to the function. In the DSL
+///         all functions accept variable number of parameters.
+int64_t CPU::GetTotalParams()
 {
-    auto totalParams = params[top].iValue;
-
-    //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
-    U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
-
-    //expression
-    params[top-totalParams+1].Convert(STRING_VALUE);
-    U8String expression;
-    expression.CopyFrom(&params[top-totalParams+1].sValue);
-
-    //start location
-    params[top-totalParams+2].Convert(INTEGER_VALUE);
-    int64_t start = params[top-totalParams+2].iValue;
-
-    A->type = INTEGER_VALUE;
-    A->iValue = Find(&search, &expression, start);
-
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    return params[top].iValue;
 }
 
-void CPU::pfn_string_len()
+/// \desc Returns the result of a built in function. Functions always return a result.
+/// The result is placed on the top of the stack.
+void CPU::ReturnResult(int64_t totalParams, DslValue *returnValue)
 {
-    auto totalParams = params[top].iValue;
-    params[top-totalParams].Convert(STRING_VALUE);
-    A->iValue = (int64_t)params[top-totalParams].sValue.Count();
+    top -= totalParams + 1;
+    params[++top].LiteCopy(returnValue);
+}
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+/// \desc Gets a single parameter.
+/// \param totalParams total parameters this is the same value provided to Get Total Parameters.
+/// \param index Index of the parameter to get. The first parameter is param index 0.
+/// \return Pointer to the parameter.
+DslValue *CPU::GetParam(int64_t totalParams, int64_t index)
+{
+    return &params[(top-totalParams) + index];
+}
+
+/// \desc Reads a file current using the local file system. The file is returned
+///       int the A dsl value. In case of an error the A dsl value will contain
+///       an error.
+/// \param file location to read the file from.
+/// \param output U8String to write the contents of the file to.
+/// \return True if successful, else false if an error occurs.
+bool CPU::ReadFile(U8String *file, U8String *output)
+{
+    FILE *fp = fopen(file->cStr(), "r");
+    if (fp == nullptr )
+    {
+        output->CopyFromCString("FILE: ");
+        output->Append(file->cStr());
+        output->Append(" error ");
+        output->Append(strerror(errno));
+        output->Append("\n");
+        fclose(fp);
+        return false;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    size_t len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    char *buffer = (char *)calloc(1, len+1);
+    fread(buffer, 1, len, fp);
+    fclose(fp);
+    output->CopyFromCString(buffer);
+
+    return true;
 }
 
 void CPU::Sub(U8String *search, U8String *result, int64_t start, int64_t length)
@@ -303,31 +329,6 @@ void CPU::Sub(U8String *search, U8String *result, int64_t start, int64_t length)
         }
     }
 
-}
-
-void CPU::pfn_string_sub()
-{
-    auto totalParams = params[top].iValue;
-
-    //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
-    U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
-
-    //start
-    params[top-totalParams+1].Convert(INTEGER_VALUE);
-    int64_t start = params[top-totalParams+1].iValue;
-
-    //length
-    params[top-totalParams+2].Convert(INTEGER_VALUE);
-    int64_t length = params[top-totalParams+2].iValue;
-
-    A->type = STRING_VALUE;
-    A->sValue.Clear();
-    Sub(&search, &A->sValue, start, length);
-
-    top -= totalParams;
-    params[top].LiteCopy(A);
 }
 
 /// \desc Gets the character length of the expression.
@@ -348,25 +349,91 @@ int64_t CPU::ExpressionLength(U8String *expression)
     return length;
 }
 
+// Region builtin callable functions.
+void CPU::pfn_string_find()
+{
+    auto totalParams = GetTotalParams();
+
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2 = GetParam(totalParams, 0);
+    auto *param3 = GetParam(totalParams, 0);
+
+    //string to search
+    param1->Convert(STRING_VALUE);
+    U8String search;
+    search.CopyFrom(&param1->sValue);
+
+    //expression
+    param2->Convert(STRING_VALUE);
+    U8String expression;
+    expression.CopyFrom(&param2->sValue);
+
+    //start location
+    param3->Convert(INTEGER_VALUE);
+    int64_t start = param3->iValue;
+
+    A->type = INTEGER_VALUE;
+    A->iValue = Find(&search, &expression, start);
+
+    ReturnResult(totalParams, A);
+}
+
+void CPU::pfn_string_len()
+{
+    auto totalParams = GetTotalParams();
+
+    auto *param1 = GetParam(totalParams, 0);
+
+    param1->Convert(STRING_VALUE);
+    A->iValue = (int64_t)param1->sValue.Count();
+
+    ReturnResult(totalParams, A);
+}
+void CPU::pfn_string_sub()
+{
+    auto totalParams = GetTotalParams();
+
+
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2= GetParam(totalParams, 1);
+    auto *param3= GetParam(totalParams, 2);
+
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    //string to search
+    param1->Convert(STRING_VALUE);
+    //start
+    param2->Convert(INTEGER_VALUE);
+    //length
+    param3->Convert(INTEGER_VALUE);
+    Sub(&param1->sValue, &A->sValue, param2->iValue, param3->iValue);
+
+    ReturnResult(totalParams, A);
+}
 
 void CPU::pfn_string_replace()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
+
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2= GetParam(totalParams, 1);
+    auto *param3= GetParam(totalParams, 2);
 
     //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
+    param1->Convert(STRING_VALUE);
     U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
+    search.CopyFrom(&param1->sValue);
 
     //expression
-    params[top-totalParams+1].Convert(STRING_VALUE);
+    param2->Convert(STRING_VALUE);
     U8String expression;
-    expression.CopyFrom(&params[top-totalParams+1].sValue);
-//
+    expression.CopyFrom(&param2->sValue);
+
     //replace
-    params[top-totalParams+2].Convert(STRING_VALUE);
+    param3->Convert(STRING_VALUE);
     U8String replace;
-    replace.CopyFrom(&params[top-totalParams+2].sValue);
+    replace.CopyFrom(&param3->sValue);
 
     int64_t start = 0;
     int64_t location = 0;
@@ -394,18 +461,18 @@ void CPU::pfn_string_replace()
         }
     }
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_string_tolower()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
     //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
+    auto  *param1 = GetParam(totalParams, 0);
+    param1->Convert(STRING_VALUE);
     U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
+    search.CopyFrom(&param1->sValue);
 
     A->type = STRING_VALUE;
     A->sValue.Clear();
@@ -417,18 +484,18 @@ void CPU::pfn_string_tolower()
         A->sValue.push_back(ch);
     }
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_string_toupper()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
     //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
+    auto *param1 = GetParam(totalParams, 0);
+    param1->Convert(STRING_VALUE);
     U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
+    search.CopyFrom(&param1->sValue);
 
     A->type = STRING_VALUE;
     A->sValue.Clear();
@@ -440,23 +507,25 @@ void CPU::pfn_string_toupper()
         A->sValue.push_back(ch);
     }
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_string_trimEnd()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
+
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2= GetParam(totalParams, 1);
 
     //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
+    param1->Convert(STRING_VALUE);
     U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
+    search.CopyFrom(&param1->sValue);
 
     //expression
-    params[top-totalParams+1].Convert(STRING_VALUE);
+    param2->Convert(STRING_VALUE);
     U8String expression;
-    expression.CopyFrom(&params[top-totalParams+1].sValue);
+    expression.CopyFrom(&param2->sValue);
 
     int64_t offset = 0;
     u8chr ex = GetExChar(&expression, offset);
@@ -472,7 +541,7 @@ void CPU::pfn_string_trimEnd()
             A->sValue.push_back(ch);
             continue;
         }
-        if (IsMatch(ch, ex))
+        if (IsMatch(ch, ex, false))
         {
             continue;
         }
@@ -480,23 +549,25 @@ void CPU::pfn_string_trimEnd()
         A->sValue.push_back(ch);
     }
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_string_trimStart()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
+
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2= GetParam(totalParams, 1);
 
     //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
+    param1->Convert(STRING_VALUE);
     U8String search;
-    search.CopyFrom(&params[top-totalParams].sValue);
+    search.CopyFrom(&param1->sValue);
 
     //expression
-    params[top-totalParams+1].Convert(STRING_VALUE);
+    param2->Convert(STRING_VALUE);
     U8String expression;
-    expression.CopyFrom(&params[top-totalParams+1].sValue);
+    expression.CopyFrom(&param2->sValue);
 
     int64_t offset = 0;
     u8chr ex = GetExChar(&expression, offset);
@@ -512,7 +583,7 @@ void CPU::pfn_string_trimStart()
             A->sValue.push_back(ch);
             continue;
         }
-        if (IsMatch(ch, ex))
+        if (IsMatch(ch, ex, false))
         {
             continue;
         }
@@ -520,18 +591,18 @@ void CPU::pfn_string_trimStart()
         A->sValue.push_back(ch);
     }
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_string_toCollection()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    //string to search
-    params[top-totalParams].Convert(STRING_VALUE);
+    //String to convert to a collection.
+    auto *param1 = GetParam(totalParams, 0);
+    param1->Convert(STRING_VALUE);
     U8String jsonString;
-    jsonString.CopyFrom(&params[top-totalParams].sValue);
+    jsonString.CopyFrom(&param1->sValue);
 
     JsonParser jp;
     auto *json = jp.From(&params[top].variableScriptName, &jsonString);
@@ -541,244 +612,280 @@ void CPU::pfn_string_toCollection()
         Error(json);
     }
 
-    top -= totalParams;
-    params[top].SAV(json);
+    A->SAV(json);
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_string_fromCollection()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
     A->type = STRING_VALUE;
-    params[top-totalParams].AppendAsJsonText(&A->sValue);
+    GetParam(totalParams, 0)->AppendAsJsonText(&A->sValue);
 
-    top -= totalParams;
-    params[top].LiteCopy(A);
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_abs()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = abs(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = abs(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_acos()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = acos(param->dValue);
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = acos(params[top-totalParams].dValue);
-
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_asin()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = asin(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = asin(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_atan()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = atan(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = atan(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_atan2()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = atan2(params[top-totalParams].dValue, params[top-totalParams+1].dValue);
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2= GetParam(totalParams, 1);
 
-    top -= totalParams;
+    param1->Convert(DOUBLE_VALUE);
+    param2->Convert(DOUBLE_VALUE);
+    A->type = DOUBLE_VALUE;
+    A->dValue = atan2(param1->dValue, param2->dValue);
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_cos()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = cos(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = cos(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_sin()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = sin(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = sin(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_tan()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = tan(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = tan(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_cosh()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = cosh(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = cosh(param->dValue);
 
-    top -= totalParams;
-
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_sinh()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = sinh(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = sinh(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_tanh()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = tanh(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = tanh(param->dValue);
 
-    top -= totalParams;
-
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_exp()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = exp(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = exp(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_log()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = log(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = log(param->dValue);
 
-    top -= totalParams;
-
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_log10()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = log10(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = log10(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_sqrt()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = log10(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = sqrt(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_ceil()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = ceil(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = ceil(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_fabs()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = fabs(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = fabs(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_floor()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = floor(params[top-totalParams].dValue);
+    A->type = DOUBLE_VALUE;
+    auto *param = GetParam(totalParams, 0);
+    param->Convert(DOUBLE_VALUE);
+    A->dValue = floor(param->dValue);
 
-    top -= totalParams;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_fmod()
 {
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    params[top-totalParams].Convert(DOUBLE_VALUE);
-    params[top-totalParams].dValue = atan2(params[top-totalParams].dValue, params[top-totalParams+1].dValue);
+    auto *param1 = GetParam(totalParams, 0);
+    auto *param2= GetParam(totalParams, 1);
+    auto *param3= GetParam(totalParams, 2);
 
-    top -= totalParams;
+    param1->Convert(DOUBLE_VALUE);
+    param2->Convert(DOUBLE_VALUE);
+    A->type = DOUBLE_VALUE;
+    A->dValue = fmod(param1->dValue, param2->dValue);
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_print()
 {
     DslValue dslValue;
 
-    auto totalParams = params[top].iValue;
+    auto totalParams = GetTotalParams();
 
-    for(int64_t ii=top-totalParams; ii<top; ++ii)
+    for(int64_t ii=0; ii<totalParams; ++ii)
     {
-        params[ii].Print(false);
+        GetParam(totalParams, ii)->Print(false);
     }
-    top -= totalParams + 1;
+
+    A->type = INTEGER_VALUE;
+    A->iValue = 0;
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_printf()
 {
-    DslValue dslValue;
-
-    auto totalParams = params[top].iValue;
-
-    for(int64_t ii=top-totalParams; ii<top; ++ii)
-    {
-        params[ii].Print(false);
-    }
-    top -= totalParams + 1;
+    pfn_print();
 }
 
 void CPU::pfn_input()
 {
-    auto totalParams = params[top].iValue;
-    top -= totalParams + 1;
+    auto totalParams = GetTotalParams();
 
     printf(">");
     char szBuffer[1024];
@@ -789,106 +896,174 @@ void CPU::pfn_input()
         *p = '\0';
     }
 
-    //PSI input value
     A->type = STRING_VALUE;
     A->sValue.CopyFromCString(szBuffer);
-    params[++top].LiteCopy(A);
-}
 
-/// \desc Reads a file current using the local file system. The file is returned
-///       int the A dsl value. In case of an error the A dsl value will contain
-///       an error.
-/// \param file location to read the file from.
-/// \return True if successful, else false if an error occurs.
-bool CPU::Read(DslValue *file)
-{
-    FILE *fp = fopen(file->sValue.cStr(), "r");
-    if (fp == nullptr )
-    {
-        A->sValue.CopyFromCString("FILE: ");
-        A->sValue.Append(file->sValue.cStr());
-        A->sValue.Append(" error ");
-        A->sValue.Append(strerror(errno));
-        A->sValue.Append("\n");
-        A->type = STRING_VALUE;
-        fclose(fp);
-        return false;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    size_t len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    char *buffer = (char *)calloc(1, len+1);
-    fread(buffer, 1, len, fp);
-    fclose(fp);
-    A->sValue.CopyFromCString(buffer);
-
-    return true;
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_read()
 {
-    auto totalParams = params[top].iValue;
-    top -= totalParams;
+    auto totalParams = GetTotalParams();
 
-    params[top].Convert(STRING_VALUE);
-    if ( !Read(&params[top]) )
+    auto *param1 = GetParam(totalParams, 0);
+    param1->Convert(STRING_VALUE);
+
+    U8String output = {};
+    if ( !ReadFile(&param1->sValue, &output) )
     {
         Error(A);
-        params[top].SAV(A);
     }
     else
     {
         JsonParser jp;
-        auto *json = jp.From(&params[top].sValue, &A->sValue);
+        auto *json = jp.From(&param1->sValue, &output);
         if ( json->type == ERROR_TOKEN )
         {
             json->type = STRING_VALUE;
             Error(json);
         }
-        params[top].SAV(json);
+        A->SAV(json);
     }
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_write()
 {
-    auto totalParams = params[top].iValue;
-    top -= totalParams;
+    auto totalParams = GetTotalParams();
 
-    U8String out;
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    auto *param1 = GetParam(totalParams, 0);
+
+    U8String fileName;
+    fileName.CopyFrom(&param1->sValue);
+
     for(int64_t ii=1; ii<totalParams; ++ii)
     {
-        params[top+ii].AppendAsJsonText(&out);
+        GetParam(totalParams, ii)->AppendAsJsonText(&A->sValue);
     }
-    params[top].Convert(STRING_VALUE);
-    FILE *fp = fopen(params[top].sValue.cStr(), "w+");
+
+    FILE *fp = fopen(fileName.cStr(), "w+");
     if (fp == nullptr )
     {
         A->sValue.CopyFromCString("Failed");
         A->sValue.Append(" FILE = ");
-        A->sValue.Append(params[top].sValue.cStr());
+        A->sValue.Append(&fileName);
         A->sValue.Append(" error ");
         A->sValue.Append(strerror(errno));
         A->sValue.Append("\n");
         A->type = STRING_VALUE;
         fclose(fp);
-        return;
     }
-    fwrite(out.cStr(), 1, out.Count(), fp);
-    fclose(fp);
-    params[top].sValue.CopyFromCString("Success");
+    else
+    {
+        fwrite(A->sValue.cStr(), 1, A->sValue.Count(), fp);
+        fclose(fp);
+        A->sValue.CopyFromCString("Success");
+    }
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_files()
 {
-    auto totalParams = params[top].iValue;
-    top -= totalParams + 1;
+    auto totalParams= GetTotalParams();
+
+    bool open = false;
+    if ( totalParams >= 2 )
+    {
+        auto *tmp = GetParam(totalParams, 1);
+        tmp->Convert(BOOL_VALUE);
+        open = tmp->bValue;
+    }
+
+    auto *param1 = GetParam(totalParams, 0);
+
+    param1->Convert(STRING_VALUE);
+    DIR *dir = opendir(param1->sValue.cStr());
+    auto *files = new DslValue();
+    if ( dir == nullptr )
+    {
+        files->type = STRING_VALUE;
+        files->sValue.CopyFromCString("Failed, directory does not exit.");
+    }
+    else
+    {
+        dirent *dp;
+        files->type = COLLECTION;
+        files->indexes.Clear();
+
+        files->variableName.Clear();
+        files->variableName.Append(dir->dd_name);
+
+        while( (dp = readdir(dir)) != nullptr )
+        {
+            auto *key = new U8String(dp->d_name);
+            auto *dslValue = new DslValue();
+            dslValue->type = INTEGER_VALUE;
+            dslValue->iValue = dp->d_namlen;
+            files->indexes.Set(key, dslValue);
+        }
+        closedir(dir);
+    }
+
+    if ( open )
+    {
+        List<KeyData *> keyData = files->indexes.GetKeyData();
+        for (int ii = 0; ii < keyData.Count(); ++ii)
+        {
+            auto *file = (U8String *) &((DslValue *)keyData[ii]->Data())->sValue;
+            if ( file->Count() > 2 )
+            {
+                U8String text = {};
+                if ( !ReadFile(file, &text) )
+                {
+                    A->type = STRING_VALUE;
+                    A->sValue.CopyFrom(&text);
+                    Error(A);
+                    ReturnResult(totalParams, A);
+                    return;
+                }
+                if (file->EndsWith(".json", false))
+                {
+                    JsonParser jp;
+                    auto *json = jp.From(file, &text);
+                    if ( json->type == ERROR_TOKEN )
+                    {
+                        json->type = STRING_VALUE;
+                        Error(json);
+                        ReturnResult(totalParams, json);
+                        return;
+                    }
+                    files->indexes.Set(keyData[ii]->Key(), json);
+                }
+                else
+                {
+                    auto *value = new DslValue();
+                    value->type = STRING_VALUE;
+                    value->sValue.CopyFrom(&text);
+
+                    files->indexes.Set(keyData[ii]->Key(), value);
+                }
+            }
+        }
+    }
+
+    ReturnResult(totalParams, A);
 }
 
 void CPU::pfn_delete()
 {
-    auto totalParams = params[top].iValue;
-    top -= totalParams + 1;
+    auto totalParams= GetTotalParams();
+
+    A->type = STRING_VALUE;
+    A->sValue.CopyFromCString("Not Implemented");
+    Error(A);
+
+    ReturnResult(totalParams, A);
 }
 
 //Random number generator constants.
@@ -1141,9 +1316,18 @@ void CPU::ExtendCollection(DslValue *collection, int64_t newEnd)
     }
 }
 
+void CPU::SetCollectionElementDirect(DslValue *dslValue)
+{
+    auto *var = program[dslValue->operand];
+    U8String *key = var->indexes.keys[dslValue->iValue];
+    auto *collection = ((DslValue *)var->indexes.Get(key)->Data());
+    collection->SAV(&params[top]);
+    --top;
+}
+
 DslValue *CPU::GetCollectionElement(DslValue *dslValue)
 {
-    auto     totalParams = params[top--].iValue; //subtract out the param count.
+    auto     totalParams = params[top].iValue; //subtract out the param count.
     DslValue *collection = dslValue;
 
     U8String *key;
@@ -1173,8 +1357,8 @@ DslValue *CPU::GetCollectionElement(DslValue *dslValue)
         }
     }
 
-    top -= totalParams;
-    collection->variableAddress = collection;
+    top -= totalParams + 1;
+    collection->elementAddress = collection;
 
     return collection;
 }
@@ -1187,7 +1371,7 @@ void CPU::PushVariableAddress(DslValue *variable)
     {
         value = GetCollectionElement(variable);
     }
-    params[++top].variableAddress = value;
+    params[++top].elementAddress = value;
 }
 
 
@@ -1205,32 +1389,34 @@ void CPU::RunNoTrace()
                 top--;
                 break;
             case SAV:
-                params[top-1].variableAddress->SAV(&params[top]);
+                params[top-1].elementAddress->SAV(&params[top]);
                 top--;
                 top--;
                 break;
             case ADA:
-                params[top-1].variableAddress->ADD(&params[top]);
+                params[top-1].elementAddress->ADD(&params[top]);
                 --top;
                 break;
             case SUA:
-                params[top-1].variableAddress->SUB(&params[top]);
+                params[top-1].elementAddress->SUB(&params[top]);
                 --top;
                 break;
             case MUA:
-                params[top-1].variableAddress->MUL(&params[top]);
+                params[top-1].elementAddress->MUL(&params[top]);
                 --top;
                 break;
                 break;
             case DIA:
-                params[top-1].variableAddress->DIV(&params[top]);
+                params[top-1].elementAddress->DIV(&params[top]);
                 --top;
                 break;
                 break;
             case MOA:
-                params[top-1].variableAddress->MOD(&params[top]);
+                params[top-1].elementAddress->MOD(&params[top]);
                 --top;
                 break;
+            case DCS:
+                SetCollectionElementDirect(dslValue);
                 break;
             case PVA:
                 PushVariableAddress(program[dslValue->operand]);
@@ -1238,7 +1424,7 @@ void CPU::RunNoTrace()
             case PCV:
                 dslValue = GetCollectionElement(program[dslValue->operand]);
                 params[++top].LiteCopy(dslValue);
-                params[top].variableAddress = dslValue;
+                params[top].elementAddress = dslValue;
                 break;
             case EXP:
                 params[top - 1].EXP(&params[top]);
@@ -1396,7 +1582,7 @@ void CPU::RunTrace()
             }
             case SAV:
                 OutputValues(program[dslValue->operand], &params[top]);
-                params[top-1].variableAddress->SAV(&params[top]);
+                params[top-1].elementAddress->SAV(&params[top]);
                 top--;
                 top--;
                 PrintResult(program[dslValue->operand]);
@@ -1409,27 +1595,29 @@ void CPU::RunTrace()
                 break;
             case SUA:
                 OutputValues(&params[top - 1], &params[top]);
-                params[top-1].variableAddress->SUB(&params[top]);
+                params[top-1].elementAddress->SUB(&params[top]);
                 --top;
                 PrintResult(&params[top]);
                 break;
             case MUA:
                 OutputValues(&params[top - 1], &params[top]);
-                params[top-1].variableAddress->MUL(&params[top]);
+                params[top-1].elementAddress->MUL(&params[top]);
                 --top;
                 PrintResult(&params[top]);
                 break;
             case DIA:
                 OutputValues(&params[top - 1], &params[top]);
-                params[top-1].variableAddress->DIV(&params[top]);
+                params[top-1].elementAddress->DIV(&params[top]);
                 --top;
                 PrintResult(&params[top]);
                 break;
             case MOA:
                 OutputValues(&params[top - 1], &params[top]);
-                params[top-1].variableAddress->MOD(&params[top]);
+                params[top-1].elementAddress->MOD(&params[top]);
                 --top;
                 PrintResult(&params[top]);
+                break;
+            case DCS:
                 break;
             case PVA:
                 PrintResult(&params[top]);
@@ -1635,6 +1823,7 @@ CPU::CPU()
     BP = 0;
     SP.clear();
     A = new DslValue();
+    params.Clear();
 }
 
 #pragma clang diagnostic pop

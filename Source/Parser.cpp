@@ -36,7 +36,11 @@ Token *Parser::PushValue(Token *token)
 {
     DslValue *value;
 
-    if ( token->type != VARIABLE_VALUE && token->type != COLLECTION_VALUE && token->type != VARIABLE_ADDRESS )
+    //If is a numeric value
+    if ( token->type != VARIABLE_VALUE &&
+         token->type != VARIABLE_ADDRESS &&
+         token->type != COLLECTION_VALUE &&
+         token->type != COLLECTION_ADDRESS )
     {
         //push direct value onto the param stack.
         value = new DslValue(token->value);
@@ -49,7 +53,10 @@ Token *Parser::PushValue(Token *token)
         return nullptr;
     }
 
+    //Else this is a variable
     //Note: Variable has the location of the defined variable in the generated program.
+    //This is true for collections as well. Event in the non-static initialization case
+    //the collection element will have a default value added as a placeholder.
     auto variable = variables.Get(token->identifier);
 #if ADD_DEBUG_INFO
     //This call should never fail in the parser since all variables definitions have been checked
@@ -63,16 +70,16 @@ Token *Parser::PushValue(Token *token)
         return nullptr;
     }
 #endif
-    //Variable type is passed in from the lexer because the lexer
-    //has the knowledge about what opcode needs to be emitted.
     value = new DslValue(variable->value);
     value->opcode = token->value->opcode;
-#if ADD_DEBUG_INFO
-    value->variableName.CopyFrom(token->identifier);
-#endif
+    if ( token->value->opcode == DCS )
+    {
+        value->type = COLLECTION_ADDRESS;
+        value->iValue = token->value->iValue;
+    }
+
     if ( program.push_back(value) )
     {
-        program[program.Count()-1]->moduleId = token->value->moduleId;
         return token;
     }
 
@@ -95,6 +102,8 @@ Token *Parser::CreateVariable(Token *token)
 
     var->operand = program.Count();
     var->variableName.CopyFrom(&token->value->variableName);
+    var->elementAddress = var;
+    var->address = var;
     token->value->operand = var->operand;
     variables.Set(&token->value->variableName, token);
     program.push_back(var);
@@ -645,6 +654,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
     {
         switch (token->type)
         {
+            case COLLECTION_ADDRESS:
             case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
                 PushValue(token);   //appears on the left side of an assignment expression.
                 break;
@@ -842,6 +852,15 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
         else if ( t->type == VARIABLE_DEF )
         {
             CreateVariable(t);
+            continue;
+        }
+        else if ( t->type == COLLECTION_ADDRESS )
+        {
+            Token *var = variables.Get(t->identifier);
+            auto *ca = new DslValue(t->value);
+            ca->opcode = DCS;
+            ca->operand = var->value->operand;
+            program.push_back(ca);
             continue;
         }
         else if ( t->type == VARIABLE_ADDRESS )

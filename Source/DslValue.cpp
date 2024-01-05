@@ -19,9 +19,10 @@ DslValue::DslValue()
     opcode   = NOP;
     operand  = 0;
     location = 0;
-    indexes = {};
-    variableAddress = nullptr;
-    jsonKey = {};
+    indexes        = {};
+    elementAddress = nullptr;
+    address = nullptr;
+    jsonKey        = {};
     moduleId = -1;
 }
 
@@ -38,9 +39,10 @@ DslValue::DslValue(int64_t i)
     opcode   = NOP;
     operand  = 0;
     location = 0;
-    indexes = {};
-    variableAddress = nullptr;
-    jsonKey = {};
+    indexes        = {};
+    elementAddress = nullptr;
+    address = nullptr;
+    jsonKey        = {};
     moduleId = -1;
 }
 
@@ -57,9 +59,10 @@ DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
     opcode = op;
     this->operand  = operand;
     this->location = location;
-    indexes = {};
-    variableAddress = nullptr;
-    jsonKey = {};
+    indexes        = {};
+    elementAddress = nullptr;
+    address = nullptr;
+    jsonKey        = {};
     moduleId = -1;
 }
 
@@ -75,8 +78,9 @@ DslValue::DslValue(DslValue *dslValue)
     bValue = dslValue->bValue;
     opcode   = dslValue->opcode;
     operand  = dslValue->operand;
-    location = dslValue->location;
-    variableAddress = dslValue->variableAddress;
+    location       = dslValue->location;
+    elementAddress = dslValue->elementAddress;
+    address = dslValue->address;
     indexes.CopyFrom(&dslValue->indexes);
     jsonKey.CopyFrom(&dslValue->jsonKey);
     moduleId = dslValue->moduleId;
@@ -93,12 +97,17 @@ DslValue::DslValue(U8String *u8String)
     opcode   = NOP;
     operand  = 0;
     location = 0;
-    indexes = {};
-    variableAddress = nullptr;
-    jsonKey = {};
+    indexes        = {};
+    elementAddress = nullptr;
+    address = nullptr;
+    jsonKey        = {};
     moduleId = -1;
 }
 
+/// \desc Copies the right collection to this one.
+/// \param right The copped to be copied to this one.
+/// \remark The address is not updated by this call as this variable is
+///         a different instance than the right one.
 void DslValue::CopyCollection(DslValue *right)
 {
     type = right->type;
@@ -107,6 +116,7 @@ void DslValue::CopyCollection(DslValue *right)
     cValue = right->cValue;
     sValue.CopyFrom(&right->sValue);
     bValue = right->bValue;
+    elementAddress = right->elementAddress;
     jsonKey.CopyFrom(&right->jsonKey);
     indexes.Clear();
     moduleId = right->moduleId;
