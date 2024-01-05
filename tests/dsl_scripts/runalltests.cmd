@@ -71,3 +71,4 @@ dsl test_dollar_double_quote_strings.dsl
 dsl collection_to_string.dsl
 dsl variable_address.dsl
 dsl read_directory.dsl
+dsl dynamically_initialize_collection.dsl
