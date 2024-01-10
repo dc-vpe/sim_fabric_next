@@ -1,3 +1,5 @@
+dsl empty_program.dsl
+dsl test_hello_world_no_ext
 dsl assignsinglebackslash.dsl
 dsl assignsinglequote.dsl
 dsl assignstring.dsl
@@ -72,3 +74,13 @@ dsl collection_to_string.dsl
 dsl variable_address.dsl
 dsl read_directory.dsl
 dsl dynamically_initialize_collection.dsl
+dsl create_empty_collection.dsl
+dsl no_keys_dbl_two_ints.dsl
+dsl create_collection_three_no_key_strings.dsl
+dsl create_absolute_index_collection.dsl
+dsl create_collection_absolute_indexes_in_reverse_order.dsl
+dsl create_multiple_collections_1.dsl
+dsl create_collection_string_keys_bools_char.dsl
+dsl create_collection_3_auto_keys_3_strings.dsl
+dsl create_collection_with_empty_placeholder_elements.dsl
+dsl define_multiple_collections_inside_collection.dsl

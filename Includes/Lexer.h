@@ -173,6 +173,9 @@ private:
     /// \desc Used when defining a variable or function, tracks if the const modifier was specified.
     bool constSpecified;
 
+    /// \desc True when a collection element is being defined.
+    bool isCollectionElement;
+
     /// \desc Used when defining a code block for a function, tracks the number of open and close { }
     ///       to determine when the function ends.
     int64_t blockCount;
@@ -213,7 +216,7 @@ private:
     OperatorSubType AddOperatorSubType(u8chr ch, u8chr ch1, bool ignoreErrors);
     bool GetNumber(bool ignoreErrors);
     u8chr GetEscapeValue(int64_t factor);
-    bool ProcessEscapeCharacter(u8chr ch, bool ignoreErrors);
+    bool ProcessEscapeCharacter(u8chr &ch, bool ignoreErrors);
     bool GetStringDirect(bool ignoreErrors);
     bool GetString(bool ignoreErrors);
     int CheckFunctionNamedParameter();
@@ -229,12 +232,16 @@ private:
     bool ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool initializeVariable);
     bool IsStaticExpression(LocationInfo end);
     bool ProcessStaticExpression(DslValue *dslValue, LocationInfo end, bool ignoreErrors, bool initializeVariable);
-    bool ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, bool isCollectionElement, int64_t index);
+    bool ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index);
     bool DefineSingleVariableAssignment(TokenTypes type, Token *token);
     bool IsCollectionAssignment();
-    bool GetElementKey(Token *token, U8String *key, int64_t &index);
+    static void AddEmptyCollectionElement(Token *token, U8String *key, int64_t &index);
+    void GenerateKey(Token *token, U8String *key, int64_t &index);
+    TokenTypes GetKey(Token *token, U8String *key, int64_t &index);
+    static bool IsTokenTypeValidForElementKeyOrValue(TokenTypes type);
+    //bool GetNextElementKey(Token *token, U8String *key, int64_t &index);
+    //bool GetElementKey(Token *token, U8String *key, int64_t &index);
     bool DefineCollection(Token *token);
-    bool DefineCollectionVariableAssignment(Token *token);
     bool DefineIf();
     bool CheckWhileSyntax();
     bool DefineWhile();
@@ -260,11 +267,11 @@ private:
     bool GetCharacterValue(bool ignoreErrors);
     TokenTypes SkipToEndOfStatement();
     static TokenTypes GetPreviousTokenType();
-    TokenTypes PeekNextTokenType(int64_t skip=1);
+    TokenTypes PeekNextTokenType(int64_t skip=1, bool checkColon = false);
     u8chr GetNextNonCommentCharacter();
-    void SkipNextTokenType();
+    void SkipNextTokenType(bool checkColon = false);
     bool IsNumber(u8chr ch);
-    TokenTypes GetNextTokenType(bool ignoreErrors);
+    TokenTypes GetNextTokenType(bool ignoreErrors = false, bool checkForColon = false);
     void GetFullName(U8String *fullName, TokenModifiers scope);
     bool IsVariableDefined(bool ignoreErrors);
     bool IsFunctionDefined(bool ignoreErrors);

@@ -343,7 +343,16 @@ bool Parser::Parse()
         return false;
     }
 
+    //conditional Jump location
+    List<int64_t> jumpLocations;
+
     program.Clear();
+
+    if ( tokens.Count() == 0 )
+    {
+        program[0] = new DslValue(END);
+        return true;
+    }
 
     position = 0;
     //Forces program to start on a non 0 instruction.
@@ -351,6 +360,8 @@ bool Parser::Parse()
     //the function definition has not been encountered yet.
     program.push_back(new DslValue(JMP));
     program[0]->moduleId = tokens[0]->value->moduleId;
+
+    //jumpLocations.push_back(program.Count());
 
     if ( tokens.Count() == 0 )
     {
@@ -360,39 +371,35 @@ bool Parser::Parse()
         return true;
     }
 
-//    for(int ii=0; ii<modules.Count(); ++ii)
-//    {
-//        program.push_back(new DslValue());
-//        program[program.Count()-1]->moduleId = ii+1;
-//        U8String tmp;
-//        tmp.Clear();
-//        tmp.CopyFromCString("TMLocalScope.");
-//        tmp.push_back(modules[ii]->Name());
-//        tmp.push_back('.');
-//        tmp.Append("OnError");
-//        program[program.Count()-1]->variableName.CopyFrom(&tmp);
-//        Token *funInfo = functions.Get(&tmp);
-//        if ( funInfo == nullptr )
-//        {
-//            funInfo = new Token();
-//
-//        }
-//
-//        funInfo->value->location = program.Count();
-//        funInfo->value->moduleId = ii+1;
-//        funInfo->identifier->CopyFrom(&tmp);
-//        functions.Set(funInfo->identifier, funInfo);
-//        program[program.Count()-1]->opcode = JBF;
-//        program[program.Count()-1]->operand = PRINT_FUNCTION_ID;
-//        program[program.Count()-1]->moduleId = ii+1;
-//    }
+    for(int ii=0; ii<modules.Count(); ++ii)
+    {
+        program.push_back(new DslValue());
+        program[program.Count()-1]->moduleId = ii+1;
+        U8String tmp;
+        tmp.Clear();
+        tmp.CopyFromCString("TMLocalScope.");
+        tmp.push_back(modules[ii]->Name());
+        tmp.push_back('.');
+        tmp.Append("OnError");
+        program[program.Count()-1]->variableName.CopyFrom(&tmp);
+        Token *funInfo = functions.Get(&tmp);
+        if ( funInfo == nullptr )
+        {
+            funInfo = new Token();
+        }
+
+        funInfo->value->location = program.Count();
+        funInfo->value->moduleId = ii+1;
+        funInfo->identifier->CopyFrom(&tmp);
+        functions.Set(funInfo->identifier, funInfo);
+        program[program.Count()-1]->opcode = JBF;
+        program[program.Count()-1]->operand = PRINT_FUNCTION_ID;
+        program[program.Count()-1]->moduleId = ii+1;
+    }
 
     program[0]->location = program.Count();
 
     Token *token = Peek(position);
-
-    //conditional Jump location
-    List<int64_t> jumpLocations;
 
     while( token->type != END_OF_SCRIPT )
     {
@@ -638,6 +645,8 @@ bool Parser::ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type)
     return true;
 }
 
+
+
 /// \desc Shunting yard expression parser, takes the lexed tokens from an expression and
 ///       arranges them into an output queue in the correct order to be processed into
 ///       an ordered list ready for code generation.
@@ -655,6 +664,16 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
         switch (token->type)
         {
             case COLLECTION_ADDRESS:
+                {
+                    while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN &&
+                           (GET_BP(token->type) < ops.peek(1)->bp() ||
+                            (token->bp() == ops.peek(1)->bp() && token->is_left_assoc())))
+                    {
+                        output->Enqueue(ops.pop_back());
+                    }
+                    output->Enqueue(token);
+                }
+                break;
             case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
                 PushValue(token);   //appears on the left side of an assignment expression.
                 break;

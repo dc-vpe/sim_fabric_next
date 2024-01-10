@@ -697,9 +697,9 @@ u8chr Lexer::GetEscapeValue(int64_t factor)
 }
 
 /// \desc Processes a single string escape character
-/// \param ch character at previous pLocation.
+/// \param ch Character at previous location, will be updated with the new character.
 /// \return True if successful, false if an error occurs and processing can't continue.
-bool Lexer::ProcessEscapeCharacter(u8chr ch, bool ignoreErrors)
+bool Lexer::ProcessEscapeCharacter(u8chr &ch, bool ignoreErrors)
 {
     if (locationInfo.location >= parseBuffer.Count())
     {
@@ -715,7 +715,7 @@ bool Lexer::ProcessEscapeCharacter(u8chr ch, bool ignoreErrors)
         if ( !ignoreErrors )
         {
             PrintIssue(1001, false, false,
-                       "The %c character is not a valid escape character", (char)ch);
+                       "The '%c' character is not a valid escape character", (char)ch);
         }
         return true;
     }
@@ -751,11 +751,6 @@ bool Lexer::ProcessEscapeCharacter(u8chr ch, bool ignoreErrors)
         default:
             locationInfo.Increment(ch);
             break;
-    }
-    if (!tmpValue->sValue.push_back(ch))
-    {
-        fatal = true;
-        return false;
     }
 
     return true;
@@ -832,6 +827,11 @@ bool Lexer::GetString(bool ignoreErrors)
             {
                 return false;
             }
+            if (!tmpValue->sValue.push_back(ch))
+            {
+                fatal = true;
+                return false;
+            }
         }
     }
 
@@ -842,27 +842,37 @@ bool Lexer::GetString(bool ignoreErrors)
 /// \return True if successful, false if an error occurs.
 bool Lexer::GetCharacterValue(bool ignoreErrors)
 {
+    tmpValue->type = CHAR_VALUE;
+
     u8chr ch = GetCurrent();
 
-    tmpBuffer->Clear();
-    if ( ch != '\\')
+    //Skip the open single quote.
+    locationInfo.Increment(ch);
+    ch = GetCurrent();
+    if ( ch == '\'' )
     {
-        if (!tmpBuffer->push_back(ch))
-        {
-            fatal = true; //out of memory.
-            return false;
-        }
+        locationInfo.Increment(ch);
+        ch = U8_NULL_CHR;
     }
-    else
+    else if ( ch == '\\')
     {
         if (!ProcessEscapeCharacter(ch, ignoreErrors))
         {
             return false;
         }
     }
+    tmpValue->cValue = ch;
+    locationInfo.Increment(ch);
+    ch = GetCurrent();
+    if ( ch != '\'')
+    {
+        PrintIssue(2095, true, false,
+                   "Single character must be enclosed in single quotes");
+        return false;
+    }
 
-    tmpValue->type = CHAR_VALUE;
-    tmpValue->cValue = tmpBuffer->get(0);
+    locationInfo.Increment(ch);
+
     return true;
 }
 
@@ -1050,52 +1060,6 @@ bool Lexer::DefineVariable()
                 return false;
             }
         }
-
-
-//        if ( !IsCollectionAssignment() )
-//        {
-//            if ( !variables.Set(token->identifier, token) )
-//            {
-//                return false;
-//            }
-//
-//            if ( !tokens.push_back(token) )
-//            {
-//                return false;
-//            }
-//
-//            auto *t = new Token(token);
-//            t->type = VARIABLE_ADDRESS;
-//            t->value->type = VARIABLE_ADDRESS;
-//            t->value->opcode = PVA;
-//            if ( !tokens.push_back(t) )
-//            {
-//                return false;
-//            }
-//
-//            if ( !DefineSingleVariableAssignment(token))
-//            {
-//                return false;
-//            }
-//        }
-//        else
-//        {
-//            SkipNextTokenType();
-//            if ( !DefineCollectionVariableAssignment(token))
-//            {
-//                return false;
-//            }
-//
-//            if ( !variables.Set(token->identifier, token) )
-//            {
-//                return false;
-//            }
-//
-//            if ( !tokens.push_back(token) )
-//            {
-//                return false;
-//            }
-//        }
 
         type = PeekNextTokenType();
         if ( type == COMMA )
@@ -1582,6 +1546,10 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
 
     TokenTypes prev = INVALID_TOKEN;
     TokenTypes type = INVALID_TOKEN;
+    if ( locationInfo.location == end.location )
+    {
+        PushTmpValue(values, tmpValue, top);
+    }
     while( locationInfo.location < end.location)
     {
         prev = type;
@@ -1712,8 +1680,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
 /// \remark If the expression can't be evaluated at lex time a default
 ///         value is set in the dslValue. This works because the code
 ///         will replace this value when it is run.
-bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression,
-                                              bool isCollectionElement, int64_t index)
+bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index)
 {
     LocationInfo end;
     if ( !GetExpressionEnd(false, end) )
@@ -1736,6 +1703,7 @@ bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, 
             t->value->variableName.CopyFrom(&token->value->variableName);
             t->value->variableScriptName.CopyFrom(&token->value->variableScriptName);
             tokens.push_back(t);
+
             dslValue->SAV(t->value);
             dslValue->opcode = DCS;
         }
@@ -1761,7 +1729,7 @@ bool Lexer::DefineSingleVariableAssignment(TokenTypes type, Token *token)
 
     bool isStaticExpression = false;
 
-    if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, false, -1) )
+    if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, -1) )
     {
         return false;
     }
@@ -1822,68 +1790,117 @@ bool Lexer::IsCollectionAssignment()
     return type == OPEN_BLOCK;
 }
 
-bool Lexer::GetElementKey(Token *token, U8String *key, int64_t &index)
+/// \desc Adds an empty collection element to a collection.
+/// \param token Token containing the collection being built.
+/// \param key Pointer to the key to be returned.
+/// \param index Reference to the current index of the collection element.
+///              This is used when a key needs to be generated.
+void Lexer::AddEmptyCollectionElement(Token *token, U8String *key, int64_t &index)
 {
-    LocationInfo save = locationInfo;
-    TokenTypes type = PeekNextTokenType();
-    if( type == COMMA || type == CLOSE_BLOCK )
-    {
-        return true;
-    }
+    key->Clear();
+    key->push_back(&token->value->variableScriptName);
+    key->push_back('.');
+    key->Append(index++);
+    token->value->indexes.Set(new U8String(key), new DslValue());
+}
 
-    type = GetNextTokenType(true);
-    u8chr ch = GetNextNonCommentCharacter();
-    if ( ch != ':' && ch != ',' && ch != '}' )
+void Lexer::GenerateKey(Token *token, U8String *key, int64_t &index)
+{
+    key->Clear();
+    key->push_back(&token->value->variableScriptName);
+    key->push_back('.');
+    key->Append(index);
+    index++;
+}
+
+/// \desc Gets or generates a key value for a collection element.
+/// \param token Token containing the collection being built.
+/// \param key Pointer to the key to be returned.
+/// \param index Reference to the current index of the collection element.
+///              This is used when a key needs to be generated.
+TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
+{
+    TokenTypes type = PeekNextTokenType(0);
+    switch (type)
     {
-        PrintIssue(2072, true, false,
-                   "Unexpected character %c encountered in collection definition", (char)ch);
-        return false;
-    }
-    if ( ch != ':' )
-    {
-        key->Clear();
-        key->push_back(&token->value->variableScriptName);
-        key->push_back('.');
-        key->Append(index);
-        locationInfo = save;
-    }
-    else
-    {
-        locationInfo.Increment(ch); //skip the : which designates a key
-        if (tmpValue->type == STRING_VALUE )
-        {
-            key->Clear();
-            key->push_back(&tmpValue->sValue);
-        }
-        else if ( tmpValue->type != INTEGER_VALUE )
-        {
-            //key is an absolute address
-            //Extend collection to the specified index and update the key to match
-            //the specified index.
-            for(int64_t ii=token->value->indexes.Count(); ii<tmpValue->iValue; ++ii)
+        case OPEN_BLOCK:
+        case DOUBLE_VALUE:
+        case STRING_VALUE:
+            if (PeekNextTokenType(2, true) == COLON)
             {
+                if (tmpValue->sValue.Count() == 0)
+                {
+                    PrintIssue(2077, true, false, "Collection element keys cannot be empty.");
+                    return ERROR_TOKEN;
+                }
                 key->Clear();
-                key->push_back(&token->value->variableScriptName);
-                key->push_back('.');
-                key->Append(index++);
-                token->value->indexes.Set(new U8String(key), new DslValue());
+                key->push_back(&tmpValue->sValue);
+                SkipNextTokenType();    //skip integer
+                SkipNextTokenType(true);    //skip :
+                return PeekNextTokenType(0);
             }
-            //Set key for current value.
-            key->Clear();
-            key->push_back(&token->value->variableScriptName);
-            key->push_back('.');
-            key->Append(tmpValue->iValue); //note may replace a lower value
-        }
-        else
-        {
-            PrintIssue(2074,
-                       "Only strings keys, and integers address keys can be used as keys in a collection",
-                       true, false);
-            return false;
-        }
+            GenerateKey(token, key, index);
+            break;
+        case CLOSE_BLOCK:
+        case COMMA:
+            break;
+        case INTEGER_VALUE:
+            if (PeekNextTokenType(2, true) == COLON)
+            {
+                U8String tmp = {};
+                if ( tmpValue->iValue < token->value->indexes.Count() )
+                {
+                    key->CopyFrom(token->value->indexes.keys[tmpValue->iValue]);
+                }
+                else
+                {
+                    for(int64_t ii=token->value->indexes.Count(); ii<tmpValue->iValue; ++ii)
+                    {
+                        AddEmptyCollectionElement(token, key, index);
+                    }
+                    key->Clear();
+                    key->push_back(&token->value->variableScriptName);
+                    key->push_back('.');
+                    key->Append(tmpValue->iValue);
+                }
+                SkipNextTokenType();    //skip integer
+                SkipNextTokenType(true);    //skip :
+                return PeekNextTokenType(0);
+            }
+            GenerateKey(token, key, index);
+            break;
+        case VARIABLE_VALUE:
+        case COLLECTION:
+            if (PeekNextTokenType(2, true) == COLON)
+            {
+                PrintIssue(2093, true, false,
+                           "Variables and collections can't be used as keys");
+                return ERROR_TOKEN;
+            }
+            else
+            {
+                GenerateKey(token, key, index);
+            }
+            break;
+        default:
+            PrintIssue(2096, true, false,
+                       "%s is not a valid value for a collection element key",
+                       tokenNames[(int64_t)type & 0xFF]);
+            return ERROR_TOKEN;
     }
 
-    return true;
+    return type;
+}
+
+/// \desc Checks if the token can be used in a collection element.
+/// \param type Token type to check.
+/// \return True if the token can be used, else false.
+bool Lexer::IsTokenTypeValidForElementKeyOrValue(TokenTypes type)
+{
+    return type == COMMA || type == OPEN_BLOCK || type == CLOSE_BLOCK || type == INTEGER_VALUE ||
+           type == DOUBLE_VALUE || type == CHAR_VALUE || type == BOOL_VALUE || type == STRING_VALUE ||
+           type == MULTI_LINE_COMMENT || type == SINGLE_LINE_COMMENT || type == VARIABLE_VALUE || type == FALSE ||
+           type == TRUE || type == FUNCTION_CALL || type == COLLECTION;
 }
 
 /// \desc Defines a collection from the in line script data.
@@ -1897,27 +1914,27 @@ bool Lexer::DefineCollection(Token *token)
     U8String key = {};
 
     int64_t index = 0;
-    int64_t startBlocks = locationInfo.Blocks();
+    int64_t startBlocks = locationInfo.openBlocks;
 
     token->value->type = COLLECTION;
     token->modifier = modifier;
 
     while( locationInfo.closeBlocks < startBlocks )
     {
-        if ( !GetElementKey(token, &key, index) )
+        type = GetKey(token, &key, index);
+        if ( type == COMMA )
         {
-            return false;
-        }
-        type = PeekNextTokenType();
-        if ( type == CLOSE_BLOCK )
-        {
+            AddEmptyCollectionElement(token, &key, index);
             SkipNextTokenType();
             continue;
         }
-        if ( type == COMMA )
+        if ( type == ERROR_TOKEN )
+        {
+            return false;
+        }
+        if ( type == CLOSE_BLOCK )
         {
             SkipNextTokenType();
-            ++index;
             continue;
         }
         if ( type == OPEN_BLOCK )
@@ -1953,208 +1970,27 @@ bool Lexer::DefineCollection(Token *token)
             continue;
         }
 
+        if ( type == VARIABLE_VALUE )
+        {
+            auto *variable = variables.Get(&fullVarName);
+            auto *t = new Token(variable);
+        }
+
         DslValue dslValue = {};
         bool isStaticExpression = false;
-        if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, true, index) )
+        isCollectionElement = true;
+        if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, index) )
         {
+            isCollectionElement = false;
             return false;
         }
         token->value->indexes.Set(new U8String(&key), new DslValue(&dslValue));
-    }
-
-    return true;
-}
-
-/// \desc Defines the statements that are assigned to a variable when it is being defined.
-/// \param token Token that contains the variable information the assignment is being applied to.
-/// \return True if successful, false if an error occurs.
-bool Lexer::DefineCollectionVariableAssignment(Token *token)
-{
-    TokenTypes type = INVALID_TOKEN;
-
-    DslValue dslValue = {};
-
-    token->value->type = COLLECTION;
-    token->modifier = modifier;
-    U8String key = {};
-    int64_t index = 0;
-    int64_t collectionEnd;
-
-    TokenTypes prev = type;
-    type = GetNextTokenType(false);
-    while( locationInfo.Blocks() )
-    {
-        while( type != CLOSE_BLOCK )
+        isCollectionElement = false;
+        if (PeekNextTokenType() == COMMA )
         {
-            prev = type;
-            LocationInfo save = locationInfo;
-            type = GetNextTokenType(true);
-            if ( type == ERROR_TOKEN )
-            {
-                return false;
-            }
-            u8chr ch = GetNextNonCommentCharacter();
-            if (ch == ':')
-            {
-                if ( type != STRING_VALUE || !CheckIdentifier(&tmpValue->sValue) )
-                {
-                    PrintIssue(2080, "Invalid key names must follow the same rules as numbers or identifiers",
-                               true);
-                    return false;
-                }
-                locationInfo.Increment(ch);
-                key.CopyFrom(&tmpValue->sValue);
-                prev = type;
-                save = locationInfo;
-                type = GetNextTokenType(false);
-            }
-            else
-            {
-                key.Clear();
-                key.push_back(&token->value->variableScriptName);
-                key.push_back('.');
-                key.Append(index);
-            }
-
-            switch (type)
-            {
-                case END_OF_SCRIPT:
-                    PrintIssue(2072, "Missing close curly brace in collection definition", true);
-                case INVALID_TOKEN:
-                case ERROR_TOKEN:
-                    PrintIssue(2075, "Error in collection definition format", true);
-                    return false;
-                case VAR: case CONST: case GLOBAL: case SCRIPT: case LOCAL: case BLOCK: case VARIABLE_DEF:
-                    PrintIssue(2073, "Variables can't be defined inside a collection", true);
-                    return false;
-                case COMMA:
-                    if (prev == COMMA)
-                    {
-                        PrintIssue(2074, "Missing variable, value, or expression between commas", true);
-                        return false;
-                    }
-                    index++;
-                    break;
-                case CLOSE_BLOCK:
-                    if ( locationInfo.Blocks() != 0 )
-                    {
-                        return true;
-                    }
-                    break;
-                case OPEN_BLOCK:
-                {
-                    //Create a new variable for the collection.
-                    U8String tmp;
-                    tmpBuffer->CopyFrom(&key);
-                    GetFullName(&tmp, token->modifier);
-                    auto *inner = new Token(VARIABLE_DEF, tmpBuffer);
-                    inner->modifier = token->modifier;
-                    inner->readyOnly = token->readyOnly;
-                    inner->value = new DslValue();
-                    inner->value->variableScriptName.CopyFrom(tmpBuffer);
-                    inner->value->variableName.CopyFrom(&tmp);
-                    inner->identifier->CopyFrom(&tmp);
-                    //Back up to where open block started so that collection can be processed correctly.
-                    locationInfo = save;
-                    if ( !DefineCollectionVariableAssignment(inner))
-                    {
-                        return false;
-                    }
-                    if ( !variables.Set(inner->identifier, inner) )
-                    {
-                        return false;
-                    }
-
-                    if ( !tokens.push_back(inner) )
-                    {
-                        return false;
-                    }
-                    token->value->indexes.Set(new U8String(&key), new DslValue(inner->value));
-                    break;
-                }
-                case VARIABLE_VALUE:
-                {
-                    auto *t = new Token(VARIABLE_VALUE, tmpBuffer);
-                    GetFullName(t->identifier, modifier);
-                    token->modifier = modifier;
-                    t->value->variableName.CopyFrom(t->identifier);
-                    auto *v = variables.Get(&t->value->variableName);
-
-                    token->value->indexes.Set(new U8String(&key), new DslValue(v->value));
-                    break;
-                }
-                case COLLECTION:
-                case COLLECTION_VALUE:
-                case REFERENCE:
-                    break;
-                case PREFIX_INC: case PREFIX_DEC: case POSTFIX_INC: case POSTFIX_DEC:
-                case ASSIGNMENT: case MULTIPLY_ASSIGNMENT: case DIVIDE_ASSIGNMENT:
-                case MODULO_ASSIGNMENT: case ADD_ASSIGNMENT: case SUBTRACT_ASSIGNMENT:
-                case SEMICOLON:
-                case IF: case ELSE: case SWITCH: case CASE: case DEFAULT: case WHILE: case FOR: case BREAK:
-                case CONTINUE: case RETURN: case LEND: case IF_COND_BEGIN: case IF_COND_END: case IF_BLOCK_BEGIN:
-                case IF_BLOCK_END: case ELSE_BLOCK_BEGIN: case ELSE_BLOCK_END: case WHILE_COND_BEGIN:
-                case WHILE_COND_END: case WHILE_BLOCK_BEGIN: case WHILE_BLOCK_END: case FOR_INIT_BEGIN:
-                case FOR_INIT_END: case FOR_COND_BEGIN: case FOR_COND_END: case FOR_UPDATE_BEGIN:
-                case FOR_UPDATE_END: case FOR_BLOCK_BEGIN:  case FOR_BLOCK_END: case SWITCH_COND_BEGIN:
-                case SWITCH_COND_END: case SWITCH_BEGIN: case SWITCH_END: case CASE_COND_BEGIN:
-                case CASE_COND_END: case CASE_BLOCK_BEGIN: case CASE_BLOCK_END: case DEFAULT_BLOCK_BEGIN:
-                case DEFAULT_BLOCK_END: case FUNCTION_DEF_BEGIN: case FUNCTION_DEF_END: case FUNCTION_PARAMETER:
-                case FUNCTION_CALL_BEGIN: case PARAM_BEGIN: case PARAM_END: case FUNCTION_CALL_END:
-                case COLLECTION_BEGIN: case COLLECTION_END:
-                    PrintIssue(2077, true, false,
-                               "Collection definitions can't contain statements.");
-                    break;
-                case OPEN_PAREN: case CLOSE_PAREN: case OPEN_BRACE: case CLOSE_BRACE:
-                case INTEGER_VALUE: case STRING_VALUE: case DOUBLE_VALUE: case CHAR_VALUE: case BOOL_VALUE:
-                case FALSE: case TRUE:
-                case UNARY_POSITIVE: case UNARY_NEGATIVE: case UNARY_NOT:
-                case CAST_TO_INT: case CAST_TO_DBL: case CAST_TO_CHR: case CAST_TO_STR: case CAST_TO_BOOL:
-                {
-                    if (token->value->indexes.Exists(&key))
-                    {
-                        PrintIssue(2082, true, false,
-                                   "Key %s already exists in the collection",
-                                   key.cStr());
-                        return false;
-                    }
-                    LocationInfo next = locationInfo;
-                    locationInfo = save;
-                    if (!ProcessStaticExpression(&dslValue, false, true))
-                    {
-                        return false;
-                    }
-                    locationInfo = next;
-                    token->value->indexes.Set(new U8String(&key), new DslValue(&dslValue));
-                    //Expect a comma, string, or close curly brace
-                    TokenTypes tt = PeekNextTokenType();
-                    if ( tt != COMMA && tt != STRING_VALUE && tt != CLOSE_BLOCK )
-                    {
-                        PrintIssue(2055,
-                                   "Missing comma, string key value, or close curly brace in collection definition",
-                                   true);
-                        return false;
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
+            SkipNextTokenType();
         }
     }
-
-    type = GetNextTokenType(true);
-    if ( type != SEMICOLON )
-    {
-        PrintIssue(2020,
-                   "Error in variable definition's assignment expression missing a comma or semicolon",
-                   true);
-        return false;
-    }
-
-    modifier = TMScriptScope;
-    varSpecified = false;
-    constSpecified = false;
 
     return true;
 }
@@ -2427,11 +2263,14 @@ bool Lexer::DefineStatements(LocationInfo end, bool noStatements)
         TokenTypes type = GetNextTokenType(false);
         if ( noStatements && IS_STATEMENT(type) )
         {
-            PrintIssue(2091, true, false,
-                       "Statements like %s do not return a value that can be"
-                              "used to initialize a variable or element of a collection",
-                       tokenNames[(int64_t)type & 0xFF]);
-            return false;
+            if ( type != VARIABLE_VALUE && type != COLLECTION )
+            {
+                PrintIssue(2091, true, false,
+                           "Statements like %s do not return a value that can be"
+                           "used to initialize a variable or element of a collection",
+                           tokenNames[(int64_t)type & 0xFF]);
+                return false;
+            }
         }
         if ( type == ERROR_TOKEN )
         {
@@ -3005,6 +2844,17 @@ bool Lexer::CheckFunctionCallSyntax()
         fullFunName.CopyFrom(&tmpFullFunctionName);
         return true;
     }
+    if ( isCollectionElement )
+    {
+        if (PeekNextTokenType() == CLOSE_BLOCK )
+        {
+            locationInfo = start;
+            tmpBuffer->CopyFrom(&tmp);
+            fullFunName.CopyFrom(&tmpFullFunctionName);
+            return true;
+        }
+    }
+
     PrintIssue(2044,
                "Function call does not end with a semicolon, or an operator that would allow the "
                "expression to be evaluated.", true);
@@ -3353,7 +3203,7 @@ TokenTypes Lexer::GetPreviousTokenType()
 /// \desc Gets the next token to be read without moving the lexing location.
 /// \param skip Number of tokens to skip ahead, default is 1 which is the next token.
 /// \return The next token type to be read.
-TokenTypes Lexer::PeekNextTokenType(int64_t skip)
+TokenTypes Lexer::PeekNextTokenType(int64_t skip, bool checkColon)
 {
     LocationInfo saved = locationInfo;
     auto *tmp = new U8String(tmpBuffer);
@@ -3365,7 +3215,7 @@ TokenTypes Lexer::PeekNextTokenType(int64_t skip)
         }
     }
 
-    TokenTypes type = GetNextTokenType(true);
+    TokenTypes type = GetNextTokenType(true, checkColon);
     tmpBuffer->CopyFrom(tmp);
     delete tmp;
     locationInfo = saved;
@@ -3408,9 +3258,9 @@ u8chr Lexer::GetNextNonCommentCharacter()
 }
 
 /// \desc Skips the next token setting the lex point to the token after the current token.
-void Lexer::SkipNextTokenType()
+void Lexer::SkipNextTokenType(bool checkColon)
 {
-    (void) GetNextTokenType(true);
+    (void) GetNextTokenType(true, checkColon);
 }
 
 /// \desc Checks if the next token is a number value.
@@ -3466,7 +3316,7 @@ bool Lexer::IsNumber(u8chr ch)
 /// \param ignoreErrors If true no errors will be generated. This is used when
 ///                     recursively calling this method.
 /// \return The next token or INVALID_TOKEN if an error or at end of code _s.
-TokenTypes Lexer::GetNextTokenType(bool ignoreErrors)
+TokenTypes Lexer::GetNextTokenType(bool ignoreErrors, bool checkForColon)
 {
     u8chr ch = GetNextNonCommentCharacter();
     //if end of code encountered
@@ -3480,6 +3330,11 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors)
         {
             return ERROR_TOKEN;
         }
+    }
+    if ( checkForColon && ch == ':' )
+    {
+        locationInfo.Increment(ch);
+        return COLON;
     }
     if (ch == '$' && PeekNextChar() == '\"' )
     {
@@ -3532,10 +3387,9 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors)
         //The member access operator is included in the identifier string if present.
         if (!ignoreErrors)
         {
-            PrintIssue(2049,
-                       "Unexpected character, expected a key word,"
-                       "variable, function, value or operator.",
-                       true);
+            PrintIssue(2049, true, false,
+                       "Unexpected character '%c', expected a key word,"
+                       "variable, function, value or operator", ch);
             return ERROR_TOKEN;
         }
         locationInfo.Increment(ch); //Skip invalid character and attempt to continue.
@@ -3895,6 +3749,10 @@ bool Lexer::Lex()
         while (type != END_OF_SCRIPT)
         {
             type = GetNextTokenType(true);
+            if ( type == STOP || type == LEND )
+            {
+                break;
+            }
             if ( type == VAR )
             {
                 varSpecified = true;
@@ -3992,6 +3850,10 @@ bool Lexer::Lex(int64_t id)
         }
 
         TokenTypes type = ReadNextToken();
+        if (type == ERROR_TOKEN)
+        {
+            break;
+        }
         if (type == END_OF_SCRIPT)
         {
             finished = true;
@@ -4001,9 +3863,12 @@ bool Lexer::Lex(int64_t id)
         type = GenerateTokens(type);
     }
 
-    for(int64_t ii=start; ii<tokens.Count(); ++ii)
+    if ( errors == 0 )
     {
-        tokens[ii]->value->moduleId = id;
+        for(int64_t ii=start; ii<tokens.Count(); ++ii)
+        {
+            tokens[ii]->value->moduleId = id;
+        }
     }
 
     return errors == 0 && warnings == 0;
@@ -4093,13 +3958,8 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
         case END_OF_SCRIPT:
             finished = true;
             return type;
-        case LEND:
-        case FUNCTION_CALL_BEGIN:
-        case PARAM_BEGIN:
-        case PARAM_END:
-        case INVALID_TOKEN:
-        case KEY_BEGIN:
-        case KEY_END:
+        case LEND: case FUNCTION_CALL_BEGIN: case PARAM_BEGIN: case PARAM_END: case INVALID_TOKEN:
+        case KEY_BEGIN: case KEY_END: case STOP: case VARIABLE_ADDRESS: case COLLECTION_ADDRESS:
             return type;
         case ERROR_TOKEN:
             return ERROR_TOKEN;
@@ -4359,6 +4219,7 @@ Lexer::Lexer()
     modifier = TMScriptScope;
     constSpecified = false;
     blockCount = 0;
+    isCollectionElement = false;
 
     locationInfo.Reset();
 

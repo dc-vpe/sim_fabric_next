@@ -46,6 +46,7 @@ enum DSL_TOKEN_OPERATIONS
     TOKEN_FUNCTION  = (uint32_t) (0x05000000), // function call
     TOKEN_PARSER    = (uint32_t) (0x06000000), // token used by parser
     TOKEN_LEXER     = (uint32_t) (0x07000000), // token used by lexer
+    TOKEN_SPECIAL   = (uint32_t) (0x08000000), // token is only valid in special cases switch/case value: "key":
     //                            0x0F000000   // specific type mask
 };
 
@@ -78,6 +79,9 @@ enum DSL_TOKEN_OPERATIONS
 
 /// \desc Checks if the token type is a value type (int, double, char, string, bool)
 #define IS_VALUE_TYPE(token_value_type)  (((token_value_type)&SPECIFIC_USE_MASK) == TOKEN_VALUE)
+
+/// \desc Checks if the token is a special use token, only one defined currently is the colon symbol.
+#define IS_SPECIAL_TYPE(token_special_type)  (((token_special_type)&SPECIFIC_USE_MASK) == TOKEN_SPECIAL)
 
 /// \desc array of the value names arranged in id order. There is one _n for each defined value.
 extern const char *tokenNames[];
@@ -221,7 +225,8 @@ enum TokenTypes
     , KEY_END              = TOKEN_PARSER    | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(120)
     , STOP                 = TOKEN_LEXER     | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(121)
     , VARIABLE_ADDRESS     = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(122)
-    , COLLECTION_ADDRESS   = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(123)
+    , COLLECTION_ADDRESS   = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(123)
+    , COLON                = TOKEN_SPECIAL   | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(123)
 };
 
 #endif //DSL_CPP_TOKEN_TYPES_H

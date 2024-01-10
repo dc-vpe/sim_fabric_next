@@ -1374,7 +1374,6 @@ void CPU::PushVariableAddress(DslValue *variable)
     params[++top].elementAddress = value;
 }
 
-
 void CPU::RunNoTrace()
 {
     while(PC < program.Count() )

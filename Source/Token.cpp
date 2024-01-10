@@ -17,7 +17,7 @@ Token::Token()
     type = INVALID_TOKEN;
     modifier = TMScriptScope;
     value = new DslValue();
-    identifier = nullptr;
+    identifier = new U8String();
     modifier = TMScriptScope;
     location = locationInfo;
     readyOnly = false;
@@ -78,7 +78,7 @@ Token::Token(DslValue *dslValue)
     }
 
     identifier = new U8String();
-    modifier = TMGlobalScope;
+    modifier = TMScriptScope;
     location = locationInfo;
     defaultIndex = -1;
     totalCases = 0;

@@ -153,7 +153,8 @@ const char *tokenNames[] =
     "KEY_END",
     "STOP",
     "VARIABLE_ADDRESS",
-    "COLLECTION_ADDRESS"
+    "COLLECTION_ADDRESS",
+    "COLON"
 };
 
 /// \desc Displays the token type along with its index and _n.
