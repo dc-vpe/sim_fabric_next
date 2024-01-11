@@ -107,8 +107,11 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA: case ERH:
             putchar('\t');
             break;
-        case PVA: case DCS:
+        case PVA:
             printf("\t&%s", dslValue->variableName.cStr());
+            break;
+        case DCS:
+            printf("\t&%s[%lld]", dslValue->variableName.cStr(), dslValue->iValue);
             break;
         case PCV:
             printf("\t%s[", dslValue->variableName.cStr());

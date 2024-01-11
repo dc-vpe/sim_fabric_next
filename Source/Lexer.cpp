@@ -1698,7 +1698,7 @@ bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, 
             auto *t = new Token(token);
             t->type = COLLECTION_ADDRESS;
             t->value->type = COLLECTION_ADDRESS;
-            t->value->iValue = index;
+            t->value->iValue = index - 1;
             t->value->opcode = DCS;
             t->value->variableName.CopyFrom(&token->value->variableName);
             t->value->variableScriptName.CopyFrom(&token->value->variableScriptName);
@@ -1804,6 +1804,11 @@ void Lexer::AddEmptyCollectionElement(Token *token, U8String *key, int64_t &inde
     token->value->indexes.Set(new U8String(key), new DslValue());
 }
 
+/// \desc Creates a key for an element that does not have a specified key.
+/// \param token Token containing the collection being built.
+/// \param key Pointer to the key to be returned.
+/// \param index Reference to the current index of the collection element.
+///              This is used when a key needs to be generated.
 void Lexer::GenerateKey(Token *token, U8String *key, int64_t &index)
 {
     key->Clear();
@@ -1968,12 +1973,6 @@ bool Lexer::DefineCollection(Token *token)
             }
             token->value->indexes.Set(new U8String(&key), new DslValue(inner->value));
             continue;
-        }
-
-        if ( type == VARIABLE_VALUE )
-        {
-            auto *variable = variables.Get(&fullVarName);
-            auto *t = new Token(variable);
         }
 
         DslValue dslValue = {};
@@ -2763,6 +2762,13 @@ bool Lexer::AddVariableValue()
             return false;
         }
         token->value->opcode = PCV;
+        if (IS_ASSIGNMENT_TOKEN(PeekNextTokenType()))
+        {
+            token->type = COLLECTION_ADDRESS;
+            token->value->type = COLLECTION_ADDRESS;
+            token->value->opcode = PVA;
+            return tokens.push_back(token);
+        }
     }
     //Assignments need the address of the variable not the value.
     if (IS_ASSIGNMENT_TOKEN(PeekNextTokenType()))
@@ -4039,7 +4045,10 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
                            prev->value->variableName.cStr());
                 return ERROR_TOKEN;
             }
-            if ( !IS_ASSIGN_TYPE(prev->type) && prev->type != COLLECTION_VALUE && prev->type != VARIABLE_ADDRESS )
+            if ( !IS_ASSIGN_TYPE(prev->type) &&
+                                 prev->type != COLLECTION_VALUE &&
+                                 prev->type != VARIABLE_ADDRESS &&
+                                 prev->type != COLLECTION_ADDRESS)
             {
                 PrintIssue(2063, "Assignment attempted to something other than a variable", true);
                 return ERROR_TOKEN;

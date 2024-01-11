@@ -236,7 +236,7 @@ private:
     bool DefineSingleVariableAssignment(TokenTypes type, Token *token);
     bool IsCollectionAssignment();
     static void AddEmptyCollectionElement(Token *token, U8String *key, int64_t &index);
-    void GenerateKey(Token *token, U8String *key, int64_t &index);
+    static void GenerateKey(Token *token, U8String *key, int64_t &index);
     TokenTypes GetKey(Token *token, U8String *key, int64_t &index);
     static bool IsTokenTypeValidForElementKeyOrValue(TokenTypes type);
     //bool GetNextElementKey(Token *token, U8String *key, int64_t &index);

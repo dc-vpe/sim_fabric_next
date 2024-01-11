@@ -1147,7 +1147,7 @@ bool DslValue::IsZero()
         case STRING_VALUE:
             return sValue.Count() == 0;
         case BOOL_VALUE:
-            return bValue == false;
+            return !bValue;
     }
 }
 

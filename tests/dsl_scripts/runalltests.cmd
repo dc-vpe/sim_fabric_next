@@ -84,3 +84,5 @@ dsl create_collection_string_keys_bools_char.dsl
 dsl create_collection_3_auto_keys_3_strings.dsl
 dsl create_collection_with_empty_placeholder_elements.dsl
 dsl define_multiple_collections_inside_collection.dsl
+dsl create_collection_referencing_other_collections.dsl
+dsl collection_pass_by_value.dsl

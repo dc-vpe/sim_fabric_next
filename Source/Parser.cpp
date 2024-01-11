@@ -74,7 +74,6 @@ Token *Parser::PushValue(Token *token)
     value->opcode = token->value->opcode;
     if ( token->value->opcode == DCS )
     {
-        value->type = COLLECTION_ADDRESS;
         value->iValue = token->value->iValue;
     }
 
@@ -877,7 +876,7 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
         {
             Token *var = variables.Get(t->identifier);
             auto *ca = new DslValue(t->value);
-            ca->opcode = DCS;
+            //ca->opcode = DCS;
             ca->operand = var->value->operand;
             program.push_back(ca);
             continue;
