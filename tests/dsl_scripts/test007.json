@@ -1,0 +1,101 @@
+[
+    {
+        "airfield_id": 2706,
+        "airfield_name": "Wright-Patterson Air Force Base",
+        "icao": "KFFO",
+        "airfield_type_id": 3,
+        "airfield_type": "Medium Airport",
+        "operator_type_id": null,
+        "operator_type": null,
+        "latitude": 39.826099,
+        "longitude": -84.048302,
+        "timezone": "America/New_York",
+        "wmog": 1,
+        "additional_pmog": 1,
+        "asr_indicator": true,
+        "tier_id": 1,
+        "tier": "Tier 1",
+        "air_traffic_control_type_id": 3,
+        "air_traffic_control_type": "Robust",
+        "command_control_type_id": 2,
+        "command_control_type": "EnRoute",
+        "commercial_maintenance_type_id": 3,
+        "commercial_maintenance_type": "None",
+        "amc_military_maintenance_type_id": 1,
+        "amc_military_maintenance_type": "AMC EnRoute",
+        "support_type_id": 1,
+        "support_type": "Adequate",
+        "country_id": 58,
+        "country": "US",
+        "region_id": 1524,
+        "region": "US-OH",
+        "continent_id": 4,
+        "continent": "North America",
+        "municipality": "Dayton",
+        "runways": [
+            {
+                "width": 300,
+                "length": 12600,
+                "operating_window_type_id": 3,
+                "operating_window": "24/7/365",
+                "day_only": true,
+                "vfr_only": false,
+                "vmc_only": false,
+                "lighted": false
+            }
+        ],
+        "services": [
+            {
+                "service_id": 1,
+                "service": "Fuel"
+            }
+        ]
+    },
+    {
+        "airfield_id": 3275,
+        "airfield_name": "Maxwell Air Force Base",
+        "icao": "KMXF",
+        "airfield_type_id": 3,
+        "airfield_type": "Medium Airport",
+        "operator_type_id": null,
+        "operator_type": null,
+        "latitude": 32.3829,
+        "longitude": -86.365799,
+        "timezone": "America/Chicago",
+        "wmog": 1,
+        "additional_pmog": 1,
+        "asr_indicator": true,
+        "tier_id": 1,
+        "tier": "Tier 1",
+        "air_traffic_control_type_id": 2,
+        "air_traffic_control_type": "Expeditionary",
+        "command_control_type_id": 2,
+        "command_control_type": "EnRoute",
+        "commercial_maintenance_type_id": 3,
+        "commercial_maintenance_type": "None",
+        "amc_military_maintenance_type_id": 1,
+        "amc_military_maintenance_type": "AMC EnRoute",
+        "support_type_id": 1,
+        "support_type": "Adequate",
+        "country_id": 58,
+        "country": "US",
+        "region_id": 1816,
+        "region": "US-AL",
+        "continent_id": 4,
+        "continent": "North America",
+        "municipality": "Montgomery",
+        "runways": [
+            {
+                "width": 150,
+                "length": 8008,
+                "operating_window_type_id": 2,
+                "operating_window": "18 hours",
+                "day_only": true,
+                "vfr_only": false,
+                "vmc_only": false,
+                "lighted": false
+            }
+        ],
+        "services": []
+    }
+]

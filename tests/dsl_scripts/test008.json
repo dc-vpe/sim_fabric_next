@@ -1,0 +1,32 @@
+[
+    {
+        "id": 1,
+        "name": "AmcMob",
+        "description": "AMC MOB"
+    },
+    {
+        "id": 2,
+        "name": "EnRoute",
+        "description": "EnRoute"
+    },
+    {
+        "id": 3,
+        "name": "SisterService",
+        "description": "Sister Service"
+    },
+    {
+        "id": 4,
+        "name": "USAF",
+        "description": "USAF"
+    },
+    {
+        "id": 5,
+        "name": "HostNationMilitary",
+        "description": "Host Nation Military"
+    },
+    {
+        "id": 6,
+        "name": "Commercial",
+        "description": "Commercial"
+    }
+]
