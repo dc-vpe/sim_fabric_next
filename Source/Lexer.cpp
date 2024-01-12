@@ -1003,7 +1003,6 @@ bool Lexer::DefineVariable()
     //as that method assumes the variable or function has already been defined.
     if ( !ValidateAndGetFullName(token, false) )
     {
-        varSpecified = false;
         SkipToEndOfStatement();
         return false;
     }
@@ -1021,8 +1020,6 @@ bool Lexer::DefineVariable()
     if (IS_ASSIGNMENT_TOKEN(type))
     {
         assignmentStart = tokens.Count();
-
-        varSpecified = false;
 
         if ( !variables.Set(token->identifier, token) )
         {
@@ -1069,6 +1066,7 @@ bool Lexer::DefineVariable()
             {
                 SkipNextTokenType();
             }
+            //Makes var specification optional when multiple variables are being treated.
             varSpecified = true;
         }
 
@@ -1451,28 +1449,6 @@ bool Lexer::GetExpressionEnd(bool ignoreErrors, LocationInfo &end)
     return false;
 }
 
-/// \desc Scans an expression within a collection definition time and either assigns the result
-///       to the token or generates an error if the expression can't be evaluated at lex time.
-/// \param dslValue Pointer to the dsl value to be updated with the result of the calculation.
-/// \param ignoreErrors If true then normal error processing occurs, else error generation except
-///                      for fatal errors are ignored.
-/// \param initializeVariable If true a collection or variable is being initialized with an expression
-///                           else false.
-/// \return True if successful, or false if an error occurs.
-bool Lexer::ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool initializeVariable)
-{
-    LocationInfo end;
-    if ( !GetExpressionEnd(ignoreErrors, end) )
-    {
-        if ( !ignoreErrors )
-        {
-            return false;
-        }
-    }
-
-    return ProcessStaticExpression(dslValue, end, ignoreErrors, initializeVariable);
-}
-
 /// \desc Checks if the assignment expression an be pre-calculated.
 /// \return True if it can else false.
 bool Lexer::IsStaticExpression(LocationInfo end)
@@ -1570,6 +1546,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
         }
         if ( type == ERROR_TOKEN )
         {
+            definingAndAssigningVariable = false;
             return false;
         }
         switch( type )
@@ -1592,6 +1569,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if (!ProcessOperation(values, type, ignoreErrors) )
                     {
+                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1604,6 +1582,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
                     {
+                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1617,6 +1596,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
                     {
+                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1635,6 +1615,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
                     {
+                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1654,6 +1635,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     PrintIssue(2078,"Expressions used to initialize a variable "
                                     "can only contain values, operators, and collections", true);
+                    definingAndAssigningVariable = false;
                 }
                 break;
         }
@@ -1662,6 +1644,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
     {
         if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
         {
+            definingAndAssigningVariable = false;
             return false;
         }
     }
@@ -1670,6 +1653,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
 
     return true;
 }
+
 /// \desc Process the script while checking the expression being used to
 ///       initialize the variable or collection element.
 /// \param token Pointer to the variable or collection being initialized.
@@ -1685,12 +1669,14 @@ bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, 
     LocationInfo end;
     if ( !GetExpressionEnd(false, end) )
     {
+        definingAndAssigningVariable = false;
         return false;
     }
     if (!IsStaticExpression(end))
     {
         if ( !DefineStatements(end, true))
         {
+            definingAndAssigningVariable = false;
             return false;
         }
         if ( isCollectionElement )
@@ -1698,7 +1684,7 @@ bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, 
             auto *t = new Token(token);
             t->type = COLLECTION_ADDRESS;
             t->value->type = COLLECTION_ADDRESS;
-            t->value->iValue = index - 1;
+            t->value->iValue = token->value->indexes.Count(); //collection elements are parsed from left to right
             t->value->opcode = DCS;
             t->value->variableName.CopyFrom(&token->value->variableName);
             t->value->variableScriptName.CopyFrom(&token->value->variableScriptName);
@@ -1727,12 +1713,15 @@ bool Lexer::DefineSingleVariableAssignment(TokenTypes type, Token *token)
 {
     DslValue dslValue = {};
 
+    definingAndAssigningVariable = true;
     bool isStaticExpression = false;
 
     if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, -1) )
     {
+        definingAndAssigningVariable = false;
         return false;
     }
+    definingAndAssigningVariable = true;
     if ( isStaticExpression )
     {
         switch( type )
@@ -1828,14 +1817,20 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
     TokenTypes type = PeekNextTokenType(0);
     switch (type)
     {
-        case OPEN_BLOCK:
+        case END_OF_SCRIPT:
+            PrintIssue(2077, true, false,
+                       "End of script reached before key definition was complete.");
+            return ERROR_TOKEN;
+        case COLON:
+            PrintIssue(2074, true, false, "Collection element keys cannot be empty.");
+            return ERROR_TOKEN;
         case DOUBLE_VALUE:
         case STRING_VALUE:
             if (PeekNextTokenType(2, true) == COLON)
             {
                 if (tmpValue->sValue.Count() == 0)
                 {
-                    PrintIssue(2077, true, false, "Collection element keys cannot be empty.");
+                    PrintIssue(2074, true, false, "Collection element keys cannot be empty.");
                     return ERROR_TOKEN;
                 }
                 key->Clear();
@@ -1844,6 +1839,20 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
                 SkipNextTokenType(true);    //skip :
                 return PeekNextTokenType(0);
             }
+            else
+            {
+                //If there is no colon the next character must be either an open block or a comma.
+                type = PeekNextTokenType(2);
+                if ( type != COMMA && type != CLOSE_BLOCK )
+                {
+                    PrintIssue(2084, true, false,
+                               "Invalid key format expected either a comma or a close curly brace");
+                    return ERROR_TOKEN;
+                }
+            }
+            GenerateKey(token, key, index);
+            break;
+        case OPEN_BLOCK:
             GenerateKey(token, key, index);
             break;
         case CLOSE_BLOCK:
@@ -1919,27 +1928,30 @@ bool Lexer::DefineCollection(Token *token)
     U8String key = {};
 
     int64_t index = 0;
-    int64_t startBlocks = locationInfo.openBlocks;
+    int64_t startBlocks = 1;
+
+    int64_t element = 0;
 
     token->value->type = COLLECTION;
     token->modifier = modifier;
 
-    while( locationInfo.closeBlocks < startBlocks )
+    while( startBlocks > 0 )
     {
         type = GetKey(token, &key, index);
+        if ( type == ERROR_TOKEN )
+        {
+            return false;
+        }
         if ( type == COMMA )
         {
             AddEmptyCollectionElement(token, &key, index);
             SkipNextTokenType();
             continue;
         }
-        if ( type == ERROR_TOKEN )
-        {
-            return false;
-        }
         if ( type == CLOSE_BLOCK )
         {
             SkipNextTokenType();
+            startBlocks--;
             continue;
         }
         if ( type == OPEN_BLOCK )
@@ -1972,6 +1984,11 @@ bool Lexer::DefineCollection(Token *token)
                 return false;
             }
             token->value->indexes.Set(new U8String(&key), new DslValue(inner->value));
+            //Skip comma if present as index has already been accounted for.
+            if (PeekNextTokenType() == COMMA )
+            {
+                SkipNextTokenType();
+            }
             continue;
         }
 
@@ -2692,17 +2709,21 @@ bool Lexer::AddVariableValue()
     {
         token->value->opcode = PSV;
     }
+    if ( token->value->type == COLLECTION )
+    {
+        if ( PeekNextTokenType() != OPEN_BRACE && !definingAndAssigningVariable)
+        {
+            if (IS_ASSIGNMENT_TOKEN(PeekNextTokenType()))
+            {
+                PrintIssue(2072, true, false,
+                           "Collections can't be reassigned once created.");
+                return false;
+            }
+        }
+    }
     //If accessing a field in a collection.
     if ( PeekNextTokenType() == OPEN_BRACE )
     {
-        if ( strict && token->value->type != COLLECTION )
-        {
-            PrintIssue(2083, true, false,
-                       "Variable %s is not a collection",
-                       fullVarName.cStr());
-            delete token;
-            return false;
-        }
         token->type = COLLECTION_VALUE;
         TokenTypes type = INVALID_TOKEN;
         int totalIndexes = 0;
@@ -2770,6 +2791,7 @@ bool Lexer::AddVariableValue()
             return tokens.push_back(token);
         }
     }
+
     //Assignments need the address of the variable not the value.
     if (IS_ASSIGNMENT_TOKEN(PeekNextTokenType()))
     {
@@ -3122,7 +3144,15 @@ bool Lexer::GetSingleLineComment()
 
     while(locationInfo.location < parseBuffer.Count())
     {
-        locationInfo.Increment(ch);
+        //Since this is a comment ignore grouping symbols.
+        if ( ch == '(' || ch == ')' || ch == '{' || ch == '}' )
+        {
+            locationInfo.Increment(' ');
+        }
+        else
+        {
+            locationInfo.Increment(ch);
+        }
         ch = GetCurrent();
         if ( !tmpBuffer->push_back(ch) )
         {
@@ -3157,7 +3187,15 @@ bool Lexer::GetMultiLineComment()
         {
             return false; //fatal error condition out of memory.
         }
-        locationInfo.Increment(ch);
+        //Since this is a comment ignore grouping symbols.
+        if ( ch == '(' || ch == ')' || ch == '{' || ch == '}' )
+        {
+            locationInfo.Increment(' ');
+        }
+        else
+        {
+            locationInfo.Increment(ch);
+        }
         if ( ch == '/' && ch1 == '*' )
         {
             ++comments;
@@ -3459,6 +3497,7 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors, bool checkForColon)
 
         if ( type != INVALID_TOKEN )
         {
+            varSpecified = false;
             if ( !ignoreErrors )
             {
                 PrintIssue(2050, true, false,
@@ -3496,6 +3535,7 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors, bool checkForColon)
 
         if ( !ignoreErrors )
         {
+            varSpecified = false;
             //Check if an attempt to create a function without specifying an open paren?
             TokenTypes next = PeekNextTokenType();
             if ( next == CLOSE_PAREN )
@@ -4059,7 +4099,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             tokens.push_back(tokenAssign);
             return type;
         }
-        case OPEN_BLOCK: //openBlocks can be functions, if, else, elseif, switch, case, and collections.
+        case OPEN_BLOCK: //open blocks can be functions, if, else, elseif, switch, case, and collections.
             if ( definingFunctionsParameters )
             {
                 return type;
@@ -4075,7 +4115,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             }
             tokens.push_back(new Token(type));
             return type;
-        case CLOSE_BLOCK: //openBlocks can be functions, if, else, elseif, switch, case, and collections.
+        case CLOSE_BLOCK: //open blocks can be functions, if, else, elseif, switch, case, and collections.
             if ( definingFunctionsParameters )
             {
                 return type;
@@ -4229,6 +4269,7 @@ Lexer::Lexer()
     constSpecified = false;
     blockCount = 0;
     isCollectionElement = false;
+    definingAndAssigningVariable = false;
 
     locationInfo.Reset();
 

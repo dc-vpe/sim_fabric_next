@@ -86,3 +86,8 @@ dsl create_collection_with_empty_placeholder_elements.dsl
 dsl define_multiple_collections_inside_collection.dsl
 dsl create_collection_referencing_other_collections.dsl
 dsl collection_pass_by_value.dsl
+dsl invalid_key_specification_missing_comma_last_key.dsl
+dsl create_new_collection_from_existing_collection.dsl
+dsl json_with_neg_exponent.dsl
+dsl airfield.dsl
+dsl lookup_sample.dsl

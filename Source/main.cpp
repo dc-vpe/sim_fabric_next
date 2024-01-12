@@ -370,8 +370,7 @@ void Help()
     printf("Note:   Command lines options are not case sensitive.\n");
     printf("Note:   Any command line entry that is not an option is considered to be a script file.\n");
     printf("--------------------------------------defaults---------------------------------------\n");
-    printf("default -s0 -d0 -l0 -p0 -r0 -t0 -w3\n");
-    printf("strict  off, variables will be promoted to collections, types will be converted from right to left.\n");
+    printf("default -d0 -l0 -p0 -r0 -t0 -w3\n");
     printf("display off, Run time, lexer, parser, trace information are not displayed.\n");
     printf("Warning Treated as error.\n");
     printf("---------------------------------------options---------------------------------------\n");
@@ -451,7 +450,6 @@ int main(int argc, char *argv[])
     lexerInfoLevel = 0;
     parserInfoLevel = 0;
     traceInfoLevel = 0;
-    strict = false;
 
     int64_t runLevel = 0;
     int64_t displayLevel = 0;
@@ -495,12 +493,6 @@ int main(int argc, char *argv[])
                 break;
             case WarningsThree:
                 warningLevel = WarningLevels::WarningLevel3;
-                break;
-            case StrictZero:
-                strict = false;
-                break;
-            case StrictOne:
-                strict = true;
                 break;
             case LexerZero:
                 lexerInfoLevel = 0;

@@ -2,6 +2,15 @@
 // Created by krw10 on 11/14/2023.
 //
 
+/// \file   Collection.h
+///         Creates a hashmap for collection keys.
+/// \remark The compiler hash map is setup specifically for the compiler and once the parse is done is
+///         no longer used. Collections have to look up key values and return dsl value types
+///         at runtime. So the choice is to either use a template hash map or create a custom hash map.
+///         Custom map allows this map to be optimized for runtime instead of compile time and avoids
+///         having to introduce other complexities because the needs of the runtime collection
+///         hash map are different than the needs of the compiler.
+
 #ifndef DSL_CPP_COLLECTION_H
 #define DSL_CPP_COLLECTION_H
 
@@ -10,6 +19,7 @@
 #endif
 #define COLLECTION_BUCKETS 512
 #include "../Includes/U8String.h"
+
 
 /// \desc The Key Data class contains the key and data information for a single element in the hash table.
 class KeyData
@@ -96,7 +106,7 @@ public:
     }
 };
 
-/// \desc Creates an efficient hashmap for quickly looking up tokens.
+/// \desc Creates an efficient hashmap for quickly looking up keys and dsl values.
 class Collection
 {
 private:

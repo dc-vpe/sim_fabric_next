@@ -282,6 +282,11 @@ public:
                 ++start;
                 continue;
             }
+            if ( exponent > 0 && *start == '-' )
+            {
+                ++start;
+                continue;
+            }
             if ( *start == ',' || *start == ']' || *start == '}' )
             {
                 break;

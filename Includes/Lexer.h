@@ -176,6 +176,9 @@ private:
     /// \desc True when a collection element is being defined.
     bool isCollectionElement;
 
+    /// \desc True when a new variable's assigment is being processed.
+    bool definingAndAssigningVariable;
+
     /// \desc Used when defining a code block for a function, tracks the number of open and close { }
     ///       to determine when the function ends.
     int64_t blockCount;
@@ -229,7 +232,6 @@ private:
     bool DefineVariable();
     bool PushTmpValue(Stack<DslValue *> &values, DslValue *dslValue, int64_t &top);
     bool GetExpressionEnd(bool ignoreErrors, LocationInfo &end);
-    bool ProcessStaticExpression(DslValue *dslValue, bool ignoreErrors, bool initializeVariable);
     bool IsStaticExpression(LocationInfo end);
     bool ProcessStaticExpression(DslValue *dslValue, LocationInfo end, bool ignoreErrors, bool initializeVariable);
     bool ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index);

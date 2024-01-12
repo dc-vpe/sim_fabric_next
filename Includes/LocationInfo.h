@@ -99,6 +99,8 @@ public:
 
     /// \desc Moves the location forward 1 character position, line and column are updated
     ///       as necessary to track with the location being parsed.
+    /// \param ch Current character read, the location info uses this character to process
+    ///           columns, lines, parens, and braces.
     void Increment(u8chr ch)
     {
         previousLocation = location;

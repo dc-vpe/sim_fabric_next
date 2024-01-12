@@ -876,7 +876,6 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
         {
             Token *var = variables.Get(t->identifier);
             auto *ca = new DslValue(t->value);
-            //ca->opcode = DCS;
             ca->operand = var->value->operand;
             program.push_back(ca);
             continue;

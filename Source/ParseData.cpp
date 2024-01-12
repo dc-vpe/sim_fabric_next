@@ -52,11 +52,6 @@ int64_t parserInfoLevel = 0;
 /// \desc Run time trace information level to display.
 int64_t traceInfoLevel = 0;
 
-/// \desc In strict mode variables are not promoted to collections and the fields must match.
-///       In non strict mode the default, variables are promoted and field checking does not
-///       take place.
-bool strict = false;
-
 /// \desc total number of standard functions,
 ///       update when adding or removing standard functions.
 int64_t totalStandardFunctions = 38;

@@ -68,7 +68,4 @@ extern const char *standardFunctionNames[];
 /// \desc Number of required parameters for build in functions.
 extern const int64_t standardFunctionParams[];
 
-/// \desc In strict mode variables are never promoted to collections.
-extern bool strict;
-
 #endif //DSL_CPP_PARSE_DATA_H
