@@ -2,8 +2,8 @@
 // Created by krw10 on 6/21/2023.
 //
 #include "../Includes/U8String.h"
-#include <malloc.h>
 #include <cstdio>
+#include <stdlib.h>
 
 bool U8String::IsEqual(U8String *u8String)
 {
@@ -212,7 +212,11 @@ bool U8String::CopyFromInt(int64_t i)
 {
     char szTmp[256] = { "0" };
 
+#ifdef _WIN64
     lltoa(i, szTmp, 10);
+#else
+    sprintf(szTmp, "%ld", i);
+#endif
 
     return CopyFromCString(szTmp);
 }
@@ -340,3 +344,63 @@ bool U8String::printf(char *format, ...)
     return true;
 }
 
+bool U8String::CompareAt(const char *cString, bool ignoreCase, int64_t len, int64_t s)
+{
+    if ( s < 0 )
+    {
+        return false;
+    }
+    for(int64_t ii=0; ii<len; ++ii)
+    {
+        u8chr ch = get(s+ii);
+
+        if ( ignoreCase )
+        {
+            if (tolower((int)ch) != tolower(cString[ii]))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if ( ch != cString[ii] )
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+int64_t U8String::IndexOf(U8String *u8String, bool ignoreCase)
+{
+    auto s = (int64_t)0;
+    auto l = (int64_t)u8String->Count();
+
+    for(int64_t ii=0; ii<Count(); ++ii)
+    {
+        u8chr ch = get(ii);
+        u8chr ch1 = u8String->get(s);
+
+        if ( ignoreCase )
+        {
+            ch = tolower((int)ch);
+            ch1 = tolower((int)ch1);
+        }
+        if ( ch == ch1 )
+        {
+            s++;
+            if ( s == l)
+            {
+                return true;
+            }
+        }
+        else
+        {
+            s = 0;
+        }
+    }
+
+    return true;
+}

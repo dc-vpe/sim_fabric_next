@@ -1302,7 +1302,7 @@ void DslValue::printItem(bool showEscapes)
             printf("\n");
             return;
         case INTEGER_VALUE:
-            printf("%lld", iValue);
+            printf("%ld", iValue);
             break;
         case DOUBLE_VALUE:
             printf("%f", dValue);
@@ -1411,7 +1411,7 @@ void DslValue::JsonAppendItemText(U8String *buffer)
             buffer->Append(&tmp);
             return;
         case INTEGER_VALUE:
-            tmp.printf((char *)"%lld", iValue);
+            tmp.printf((char *)"%ld", iValue);
             buffer->Append(&tmp);
             break;
         case DOUBLE_VALUE:

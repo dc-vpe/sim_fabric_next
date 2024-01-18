@@ -107,28 +107,6 @@ public:
         return INVALID_TOKEN;
     }
 
-    /// \desc Gets the value Type of a value Type token.
-    static TokenTypes GetTokenValueType(int64_t index)
-    {
-        if (index >= 0 && index < tokens.Count())
-        {
-            return tokens[index]->value->type;
-        }
-        else
-        {
-            return INVALID_TOKEN;
-        }
-    }
-
-    /// \desc Gets the token modifier.
-    static TokenModifiers GetTokenModifier(int64_t index)
-    { return tokens[index]->modifier; }
-
-    /// \desc Gets the read only state of the token. Only variables, parameters,
-    ///       and functions can be marked ready only.
-    static bool IsReadOnly(int64_t index)
-    { return tokens[index]->readyOnly; }
-
     /// \desc Creates a lexer and returns a pointer to it. See header for detailed description.
     Lexer();
 
@@ -146,15 +124,7 @@ public:
     /// \desc Processes and translates all of the added modules.
     bool Lex();
 
-    /// \desc Gets the _n of the provided scope.
-    static const char *GetScopeName(TokenModifiers scope)
-    {
-        return szScopeNames[scope];
-    }
-
 private:
-    static const char *szScopeNames[];
-
     /// \desc Name of current module being lexed.
     U8String module;
 
@@ -211,7 +181,7 @@ private:
     TokenTypes GetOperatorToken(bool ignoreErrors);
     u8chr SkipWhiteSpace();
     u8chr PeekNextChar();
-    static bool CheckIdentifier(U8String *u8String);
+    [[maybe_unused]] static bool CheckIdentifier(U8String *u8String);
     bool GetIdentifier();
     TokenTypes GetKeyWordTokenType(bool ignoreErrors);
     bool IsSingleLineComment(u8chr ch);
@@ -240,9 +210,6 @@ private:
     static void AddEmptyCollectionElement(Token *token, U8String *key, int64_t &index);
     static void GenerateKey(Token *token, U8String *key, int64_t &index);
     TokenTypes GetKey(Token *token, U8String *key, int64_t &index);
-    static bool IsTokenTypeValidForElementKeyOrValue(TokenTypes type);
-    //bool GetNextElementKey(Token *token, U8String *key, int64_t &index);
-    //bool GetElementKey(Token *token, U8String *key, int64_t &index);
     bool DefineCollection(Token *token);
     bool DefineIf();
     bool CheckWhileSyntax();

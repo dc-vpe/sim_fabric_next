@@ -62,7 +62,8 @@ enum OPCODES
     DIA,    //Divide Assign
     MOA,    //Modulo Assign
     ERH,    //Error handler for script file
-    DCS     //Save non-static result in a collection during definition
+    DCS,    //Save non-static result in a collection during definition
+    EFI,    //Event function information
 };
 
 #endif //DSL_CPP_OPCODES_H

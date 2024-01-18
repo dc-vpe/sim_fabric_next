@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
+#include <cstdlib>
 #include "dsl_types.h"
 #include "Utf8.h"
 #include "LocationInfo.h"
@@ -160,6 +161,12 @@ public:
     ///         not contained in the string.
     int64_t IndexOf(u8chr ch);
 
+    /// \desc Gets the index of the string in this string.
+    /// \param u8String string to check.
+    /// \param ignoreCase True if a a case insensitive search should be used, else false.
+    /// \return The index at which the u8string begins in this string or -1 if the string is not found.
+    int64_t IndexOf(U8String *u8String, bool ignoreCase);
+
     /// \desc Appends the U8String to the end of this u8String.
     bool Append(U8String *u8String);
 
@@ -168,6 +175,15 @@ public:
 
     /// \desc Converts the value to a string and appends it to this string.
     bool Append(int64_t i);
+
+    /// \desc Checks if the u8String is contained in this u8String.
+    /// \param u8String Pointer to string containing the text to check for.
+    /// \param ignoreCase If false a case sensitive search is used, if true caseless search is used.
+    /// \return True if the string is found, else false.
+    bool Contains(U8String *u8String, bool ignoreCase = false)
+    {
+        return IndexOf(u8String, ignoreCase);
+    }
 
     /// \desc Allocates and copies the strings contents to a u8chr array.
     /// \param data Pointer to the buffer to receive the UTF8 characters.
@@ -187,7 +203,7 @@ public:
     /// \param cString C format string containing the characters to check for.
     /// \param ignoreCase True if the check should ignore case, else false.
     /// \return True if the string ends with the U8String, else false.
-    bool EndsWith(U8String *u8String, bool ignoreCase)
+    [[maybe_unused]] bool EndsWith(U8String *u8String, bool ignoreCase)
     {
         return EndsWith(u8String->cStr(), ignoreCase);
     }
@@ -201,32 +217,29 @@ public:
         auto len = (int64_t)strlen(cString);
         auto c = (int64_t)Count();
         auto s = c - len;
-        if ( s < 0 )
-        {
-            return false;
-        }
-        for(int64_t ii=0; ii<len; ++ii)
-        {
-            u8chr ch = get(s+ii);
 
-            if ( ignoreCase )
-            {
-                if (tolower((int)ch) != tolower(cString[ii]))
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                if ( ch != cString[ii] )
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
+        return CompareAt(cString, ignoreCase, len, s);
     }
+
+    /// \desc Checks if the U8String begins with the cString
+    /// \param cString C format string containing the characters to check for.
+    /// \param ignoreCase True if the check should ignore case, else false.
+    /// \return True if the string ends with the U8String, else false.
+    [[maybe_unused]] bool BeginsWith(const char *cString, bool ignoreCase)
+    {
+        auto len = (int64_t)strlen(cString);
+        auto c = (int64_t)Count();
+        auto s = c - len;
+
+        return CompareAt(cString, ignoreCase, len, 0);
+    }
+
+    /// \desc Checks if the cString is at the location in this string.
+    /// \param cString string to look for.
+    /// \param ignoreCase True if the check should ignore case, else false.
+    /// \param len length of cString.
+    /// \param s location in cString to check.
+    bool CompareAt(const char *cString, bool ignoreCase, int64_t len, int64_t s);
 
     /// \desc Provides printf style string creation for the U8String.
     /// \return True if successful else false.
@@ -235,6 +248,7 @@ public:
 private:
     List<u8chr> *buffer;
     List<char> *ascii;
+
 };
 
 #endif //DSL_UTF8STRING_H

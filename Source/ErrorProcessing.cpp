@@ -49,18 +49,18 @@ void PrintIssue(int64_t number, const char *msg, bool error, bool fatalError)
     //if a run time error no line and column
     if ( number >= 4000 && number <= 5000)
     {
-        sprintf(szErrorMessage, "Run Error(%lld): %s\n", number, msg);
-        CPU::RaiseError(szErrorMessage);
+        sprintf(szErrorMessage, "Run Error(%ld): %s\n", (long)number, msg);
+        CPU::RaiseError(number, szErrorMessage);
     }
     else
     {
         sprintf(szErrorMessage,
-                "%s(%lld): %s at line %lld, column %lld\n", ((error) ? "Error" : "Warning"),
-                number, msg, locationInfo.line, locationInfo.column);
+                "%s(%ld): %s at line %ld, column %ld\n", ((error) ? "Error" : "Warning"),
+                (long)number, msg, (long)locationInfo.line, (long)locationInfo.column);
 
         if ( strcmp(szErrorMessage, szLastErrorMessage) != 0 )
         {
-            strcpy_s(szLastErrorMessage, szErrorMessage);
+            strcpy(szLastErrorMessage, szErrorMessage);
             printf("%s", szErrorMessage);
         }
     }

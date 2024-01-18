@@ -8,9 +8,6 @@
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
 
-/// \desc scope names maps 1 to 1 to the enum. This is used for display of targeted error messages.
-const char *Lexer::szScopeNames[] = {  "invalid scope", "block",  "local","_s", "global" };
-
 /// \desc Gets the character at the location.
 /// \return The character or U8_NULL_CHR if location is outside the range of the code.
 u8chr Lexer::GetCurrent()
@@ -412,7 +409,7 @@ u8chr Lexer::PeekNextChar()
 /// \desc Checks if the u8String contains a string that follows the rules for identifiers.
 /// \param u8String Pointer to a U8String containing the characters to check.
 /// \return True if the u8String contains a valid identifier, else false.
-bool Lexer::CheckIdentifier(U8String *u8String)
+[[maybe_unused]] bool Lexer::CheckIdentifier(U8String *u8String)
 {
     for(int64_t ii=0; ii < u8String->Count(); ++ii)
     {
@@ -1904,17 +1901,6 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
     }
 
     return type;
-}
-
-/// \desc Checks if the token can be used in a collection element.
-/// \param type Token type to check.
-/// \return True if the token can be used, else false.
-bool Lexer::IsTokenTypeValidForElementKeyOrValue(TokenTypes type)
-{
-    return type == COMMA || type == OPEN_BLOCK || type == CLOSE_BLOCK || type == INTEGER_VALUE ||
-           type == DOUBLE_VALUE || type == CHAR_VALUE || type == BOOL_VALUE || type == STRING_VALUE ||
-           type == MULTI_LINE_COMMENT || type == SINGLE_LINE_COMMENT || type == VARIABLE_VALUE || type == FALSE ||
-           type == TRUE || type == FUNCTION_CALL || type == COLLECTION;
 }
 
 /// \desc Defines a collection from the in line script data.
@@ -4238,6 +4224,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
                 return ERROR_TOKEN;
             }
             return type;
+        case COLON:
         case FALSE: case TRUE:
         case PARAMETER_VALUE: case BRK: case FUNCTION_DEF_END: case FUNCTION_PARAMETER:
         case BLOCK: case ELSE: case IF_COND_BEGIN: case IF_COND_END: case IF_BLOCK_BEGIN: case IF_BLOCK_END:

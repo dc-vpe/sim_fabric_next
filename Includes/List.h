@@ -7,7 +7,7 @@
 
 #include "dsl_types.h"
 #include "ErrorProcessing.h"
-#include <memory>
+#include <memory.h>
 
 /// \desc This template class creates a dynamically sizable array of items. Syntax is similar to
 ///       the C# list type.

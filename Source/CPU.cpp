@@ -10,6 +10,10 @@
 #include <cctype>
 #include <dirent.h>
 
+#ifdef __linux__
+#include <cerrno>
+#endif
+
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
 const char *OpCodeNames[] =
@@ -72,6 +76,9 @@ const char *OpCodeNames[] =
         "DCS"     //Save non-static result in a collection during definition
 };
 
+int64_t  CPU::errorCode;
+U8String CPU::szErrorMsg;
+
 void CPU::DisplayASMCodeLines()
 {
     int64_t addr = 0;
@@ -86,7 +93,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
 {
     DslValue *dslValue = program[addr];
 
-    printf("%4.4lld\t%s", addr, OpCodeNames[dslValue->opcode]);
+    printf("%4.4ld\t%s", (long)addr, OpCodeNames[dslValue->opcode]);
     switch(dslValue->opcode)
     {
         case DEF:
@@ -105,13 +112,14 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case EXP: case MUL: case DIV: case SUB: case MOD: case ADD:
         case TEQ:  case TNE: case TGR:  case TGE: case TLS:
         case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA: case ERH:
+        case EFI:
             putchar('\t');
             break;
         case PVA:
             printf("\t&%s", dslValue->variableName.cStr());
             break;
         case DCS:
-            printf("\t&%s[%lld]", dslValue->variableName.cStr(), dslValue->iValue);
+            printf("\t&%s[%ld]", dslValue->variableName.cStr(), (long)dslValue->iValue);
             break;
         case PCV:
             printf("\t%s[", dslValue->variableName.cStr());
@@ -122,7 +130,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             printf("\t%s\t;var %s", dslValue->variableName.cStr(), dslValue->variableName.cStr());
             break;
         case INL: case DEL:
-            printf("\t%s\t;param[BP+%lld]", dslValue->variableName.cStr(), dslValue->operand);
+            printf("\t%s\t;param[BP+%ld]", dslValue->variableName.cStr(), (long)dslValue->operand);
             break;
         case JTB:
         {
@@ -132,12 +140,12 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             for (int64_t ii = 0; ii < dslValue->operand; ++ii)
             {
                 DslValue *caseValue = program[addr];
-                printf("%4.4lld\tJMP\t%4.4lld\t;case ", addr, caseValue->location);
+                printf("%4.4ld\tJMP\t%4.4ld\t;case ", (long)addr, (long)caseValue->location);
                 caseValue->Print(true);
                 printf("\n");
                 ++addr;
             }
-            printf("%4.4lld\tJMP\t%4.4lld;\t;default\n", startAddr, dslValue->location);
+            printf("%4.4ld\tJMP\t%4.4ld;\t;default\n", (long)startAddr, (long)dslValue->location);
             return addr - 1;
         }
         case PSI:
@@ -152,7 +160,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             break;
         case JIF: case JIT:
         case JMP: case JSR:
-            printf("\t%4.4lld", dslValue->location);
+            printf("\t%4.4ld", (long)dslValue->location);
             break;
     }
     if (newline)
@@ -637,7 +645,12 @@ void CPU::pfn_abs()
     A->type = DOUBLE_VALUE;
     auto *param = GetParam(totalParams, 0);
     param->Convert(DOUBLE_VALUE);
+
+#ifdef __linux__
     A->dValue = abs(param->dValue);
+#else
+    A->dValue = std::abs(param->dValue);
+#endif
 
     ReturnResult(totalParams, A);
 }
@@ -932,29 +945,19 @@ void CPU::pfn_read()
     ReturnResult(totalParams, A);
 }
 
-void CPU::pfn_write()
+void CPU::WriteFile(U8String *fileName, int64_t totalParams)
 {
-    auto totalParams = GetTotalParams();
-
-    A->type = STRING_VALUE;
-    A->sValue.Clear();
-
-    auto *param1 = GetParam(totalParams, 0);
-
-    U8String fileName;
-    fileName.CopyFrom(&param1->sValue);
-
     for(int64_t ii=1; ii<totalParams; ++ii)
     {
         GetParam(totalParams, ii)->AppendAsJsonText(&A->sValue);
     }
 
-    FILE *fp = fopen(fileName.cStr(), "w+");
+    FILE *fp = fopen(fileName->cStr(), "w+");
     if (fp == nullptr )
     {
         A->sValue.CopyFromCString("Failed");
         A->sValue.Append(" FILE = ");
-        A->sValue.Append(&fileName);
+        A->sValue.Append(fileName);
         A->sValue.Append(" error ");
         A->sValue.Append(strerror(errno));
         A->sValue.Append("\n");
@@ -967,6 +970,36 @@ void CPU::pfn_write()
         fclose(fp);
         A->sValue.CopyFromCString("Success");
     }
+}
+
+void CPU::pfn_write()
+{
+    auto totalParams = GetTotalParams();
+
+    A->type = STRING_VALUE;
+    A->sValue.Clear();
+
+    auto *param1 = GetParam(totalParams, 0);
+
+    U8String fileName;
+    fileName.CopyFrom(&param1->sValue);
+
+    if ( fileName.BeginsWith("https://", false))
+    {
+
+    }
+    else if ( fileName.BeginsWith("ftps://", false))
+    {
+
+    }
+    else if ( fileName.BeginsWith("wss://", false) )
+    {
+
+    }
+    else
+    {
+        WriteFile(&fileName, totalParams);
+    }
 
     ReturnResult(totalParams, A);
 }
@@ -974,7 +1007,7 @@ void CPU::pfn_write()
 void CPU::pfn_files()
 {
     auto totalParams= GetTotalParams();
-
+#ifndef linux
     bool open = false;
     if ( totalParams >= 2 )
     {
@@ -1054,7 +1087,7 @@ void CPU::pfn_files()
             }
         }
     }
-
+#endif
     ReturnResult(totalParams, A);
 }
 
@@ -1161,24 +1194,6 @@ void CPU::JumpToBuiltInFunctionNoTrace(DslValue *dslValue)
     (this->*builtInMethods[dslValue->operand])();
 }
 
-void CPU::JumpToBuiltInFunctionTrace(DslValue *dslValue)
-{
-    DslValue dslValue1;
-
-    if ( traceInfoLevel == 1)
-    {
-        printf(";top = %lld\t%lld", top, params[top].iValue);
-        for(int64_t ii=top-params[top].iValue; ii<top; ++ii)
-        {
-            putchar(',');
-            params[ii].Print(true);
-        }
-        printf("\n>>>> Print: >>>>\n");
-    }
-
-    (this->*builtInMethods[dslValue->operand])();
-}
-
 /// \desc calls a compiled script function.
 /// remarks
 ///locals are set in order encountered after parameters and start at operand == 0 and
@@ -1191,35 +1206,7 @@ void CPU::JumpToSubroutineNoTrace(DslValue *dslValue)
     int64_t saved = BP;
     BP = top - totalParams;
     PC = dslValue->location;
-    Run();
-    A->SAV(&params[top]);
-    --top;
-    BP = saved;
-    top -= totalParams + 1;
-    params[++top].SAV(A);
-    PC = pcReturn;
-}
-
-/// \desc calls a compiled script function.
-/// remarks
-///locals are set in order encountered after parameters and start at operand == 0 and
-///each local adds 1 to the operand.
-void CPU::JumpToSubroutineTrace(DslValue *dslValue)
-{
-    printf(";top = %lld, params = %lld, location = %4.4lld, ", top, params[top].iValue, dslValue->location);
-    for(int64_t ii=top-params[top].iValue; ii<top; ++ii)
-    {
-        params[ii].Print(true);
-        putchar('\t');
-    }
-
-    auto totalParams = params[top].iValue;
-
-    int64_t pcReturn = PC;
-    int64_t saved = BP;
-    BP = top - totalParams;
-    PC = dslValue->location;
-    Run();
+    RunNoTrace();
     A->SAV(&params[top]);
     --top;
     BP = saved;
@@ -1245,65 +1232,16 @@ void CPU::ProcessJumpTableNoTrace(DslValue *dslValue)
     --top;
 }
 
-void CPU::ProcessJumpTableTrace(DslValue *dslValue)
-{
-    for(int64_t ii=0; ii<dslValue->operand; ++ii)
-    {
-        putchar('\t');
-        putchar(';');
-        printf("if ( ");
-        params[top].Print(true);
-        printf(" == ");
-        program[PC + ii]->Print(true);
-        printf(") ");
-        printf("%lld", program[PC + ii]->location);
-
-        if ( params[top].IsEqual(program[PC + ii]) )
-        {
-            PC = program[PC + ii]->location;
-            --top;
-            return;
-        }
-    }
-
-    for(int64_t ii=0; ii<dslValue->operand; ++ii)
-    {
-        if ( params[top].IsEqual(program[PC + ii]) )
-        {
-            PC = program[PC + ii]->location;
-            --top;
-            return;
-        }
-    }
-
-    //jump to default or out of switch.
-    PC = dslValue->location;
-    --top;
-}
-
-void CPU::OutputValues(DslValue *left, DslValue *right) const
-{
-    printf(";top = %lld\t", top);
-    left->Print(true);
-    printf("\t");
-    right->Print(true);
-}
-
-void CPU::PrintResult(DslValue *result)
-{
-    printf(" = ");
-    result->Print(true);
-}
-
 void CPU::Run()
 {
-    if ( traceInfoLevel == 0 )
+    if ( traceInfoLevel == 1 )
+    {
+        RunTrace();
+    }
+    else
     {
         RunNoTrace();
-        return;
     }
-
-    RunTrace();
 }
 
 void CPU::ExtendCollection(DslValue *collection, int64_t newEnd)
@@ -1377,445 +1315,410 @@ void CPU::PushVariableAddress(DslValue *variable)
     params[++top].elementAddress = value;
 }
 
-void CPU::RunNoTrace()
+/// \desc calls the on error handler if one exists.
+void CPU::JumpToOnErrorHandler()
 {
+    auto totalParams = params[top].iValue;
+
+    int64_t handlerLocation = 0;
+
+    DslValue *instruction = program[PC];
+
+    for(int64_t ii=0; ii<eventHandlers.Count(); ++ii)
+    {
+        if ( eventHandlers[ii].moduleId == instruction->moduleId )
+        {
+            if ( eventHandlers[ii].sValue.IsEqual("OnError") )
+            {
+                handlerLocation = eventHandlers[ii].location;
+                break;
+            }
+        }
+    }
+
+    if ( handlerLocation == 0 )
+    {
+        printf("%s", szErrorMsg.cStr());
+        PC = program.Count();
+        return;
+    }
+
+    int64_t pcReturn = PC;
+    int64_t saved = BP;
+    BP = top - totalParams;
+    PC = handlerLocation;
+
     while(PC < program.Count() )
     {
         DslValue *dslValue = program[PC++];
-        switch( dslValue->opcode )
+        //If return from on error handler.
+        if ( dslValue->opcode == RET )
         {
-            case DEF: case NOP: case END: case PSP: case ERH:
-                break;
-            case SLV:
-                params[BP+params[top - 1].operand].SAV(&params[top]);
-                top--;
-                break;
-            case SAV:
-                params[top-1].elementAddress->SAV(&params[top]);
-                top--;
-                top--;
-                break;
-            case ADA:
-                params[top-1].elementAddress->ADD(&params[top]);
-                --top;
-                break;
-            case SUA:
-                params[top-1].elementAddress->SUB(&params[top]);
-                --top;
-                break;
-            case MUA:
-                params[top-1].elementAddress->MUL(&params[top]);
-                --top;
-                break;
-                break;
-            case DIA:
-                params[top-1].elementAddress->DIV(&params[top]);
-                --top;
-                break;
-                break;
-            case MOA:
-                params[top-1].elementAddress->MOD(&params[top]);
-                --top;
-                break;
-            case DCS:
-                SetCollectionElementDirect(dslValue);
-                break;
-            case PVA:
-                PushVariableAddress(program[dslValue->operand]);
-                break;
-            case PCV:
-                dslValue = GetCollectionElement(program[dslValue->operand]);
-                params[++top].LiteCopy(dslValue);
-                params[top].elementAddress = dslValue;
-                break;
-            case EXP:
-                params[top - 1].EXP(&params[top]);
-                top--;
-                break;
-            case MUL:
-                params[top - 1].MUL(&params[top]);
-                top--;
-                break;
-            case DIV:
-                params[top - 1].DIV(&params[top]);
-                top--;
-                break;
-            case ADD:
-                params[top - 1].ADD(&params[top]);
-                top--;
-                break;
-            case SUB:
-                params[top - 1].SUB(&params[top]); top--;
-                break;
-            case MOD:
-                params[top - 1].MOD(&params[top]); top--;
-                break;
-            case XOR:
-                params[top - 1].XOR(&params[top]); top--;
-                break;
-            case BND:
-                params[top - 1].BND(&params[top]); top--;
-                break;
-            case BOR:
-                params[top - 1].BOR(&params[top]); top--;
-                break;
-            case SVL:
-                params[top - 1].SVL(&params[top]); top--;
-                break;
-            case SVR:
-                params[top - 1].SVR(&params[top]); top--;
-                break;
-            case TEQ:
-                params[top - 1].TEQ(&params[top]); top--;
-                break;
-            case TNE:
-                params[top - 1].TNE(&params[top]); top--;
-                break;
-            case TGR:
-                params[top - 1].TGR(&params[top]); top--;
-                break;
-            case TGE:
-                params[top - 1].TGE(&params[top]); top--;
-                break;
-            case TLS:
-                params[top - 1].TLS(&params[top]); top--;
-                break;
-            case TLE:
-                params[top - 1].TLE(&params[top]); top--;
-                break;
-            case AND:
-                params[top - 1].AND(&params[top]); top--;
-                break;
-            case LOR:
-                params[top - 1].LOR(&params[top]); top--;
-                break;
-            case INL:
-                params[BP+dslValue->operand].INC();
-                break;
-            case DEL:
-                params[BP+dslValue->operand].DEC();
-                break;
-            case INC:
-                program[dslValue->operand]->INC();
-                break;
-            case DEC:
-                program[dslValue->operand]->DEC();
-                break;
-            case NOT:
-                params[top].NOT();
-                break;
-            case NEG:
-                params[top].NEG();
-                break;
-            case CTI:
-                params[top].Convert(INTEGER_VALUE);
-                break;
-            case CTD:
-                params[top].Convert(DOUBLE_VALUE);
-                break;
-            case CTC:
-                params[top].Convert(CHAR_VALUE);
-                break;
-            case CTS:
-                params[top].Convert(STRING_VALUE);
-                break;
-            case CTB:
-                params[top].Convert(BOOL_VALUE);
-                break;
-            case JIF:
-                PC = (params[top].bValue) ? PC : dslValue->location; top--;
-                break;
-            case JIT:
-                PC = (params[top].bValue) ? dslValue->location : PC; top--;
-                break;
-            case JMP:
-                PC = dslValue->location;
-                break;
-            case JBF:
-                JumpToBuiltInFunctionNoTrace(dslValue);
-                break;
-            case PSI:
-                params[++top].LiteCopy(dslValue);
-                break;
-            case PSV:
-                params[++top].LiteCopy(program[dslValue->operand]);
-                break;
-            case DFL:
-                params.push_back(DslValue(DFL, params.Count()));
-                break;
-            case PSL:
-                params[++top].LiteCopy(&params[BP+dslValue->operand]);
-                params[top].operand = dslValue->operand;
-                break;
-            case RET:
-                return;
-            case JSR:
-                JumpToSubroutineNoTrace(dslValue);
-                break;
-            case JTB:
-                ProcessJumpTableNoTrace(dslValue);
-                break;
+            //Check handler return code.
+            A->SAV(&params[top]);
+            A->Convert(INTEGER_VALUE);
+            --top;
+            switch( A->iValue )
+            {
+                case 100:   //return error.continue
+                    BP = saved;
+                    top -= totalParams + 1;
+                    params[++top].SAV(A);
+                    PC = pcReturn;
+                    return;
+                //The rest of these require the sim framework
+                case 200: //error.restart
+                case 300: //error.reload
+                case 400: //error.waitQuit
+                case 500: //error.WaitReload
+                    break;
+                default: //error.quit
+                    BP = saved;
+                    top -= totalParams + 1;
+                    params[++top].SAV(A);
+                    PC = pcReturn;
+                    return;
+            }
         }
+
+        RunInstruction(program[PC++]);
+    }
+}
+
+void CPU::RunInstruction(DslValue *dslValue)
+{
+    switch( dslValue->opcode )
+    {
+        case END:
+            PC = program.Count();
+            break;
+        case DEF: case NOP: case PSP: case ERH: case EFI:
+            break;
+        case SLV:
+            params[BP+params[top - 1].operand].SAV(&params[top]);
+            top--;
+            break;
+        case SAV:
+            params[top-1].elementAddress->SAV(&params[top]);
+            top--;
+            top--;
+            break;
+        case ADA:
+            params[top-1].elementAddress->ADD(&params[top]);
+            --top;
+            break;
+        case SUA:
+            params[top-1].elementAddress->SUB(&params[top]);
+            --top;
+            break;
+        case MUA:
+            params[top-1].elementAddress->MUL(&params[top]);
+            --top;
+            break;
+            break;
+        case DIA:
+            params[top-1].elementAddress->DIV(&params[top]);
+            --top;
+            break;
+            break;
+        case MOA:
+            params[top-1].elementAddress->MOD(&params[top]);
+            --top;
+            break;
+        case DCS:
+            SetCollectionElementDirect(dslValue);
+            break;
+        case PVA:
+            PushVariableAddress(program[dslValue->operand]);
+            break;
+        case PCV:
+            dslValue = GetCollectionElement(program[dslValue->operand]);
+            params[++top].LiteCopy(dslValue);
+            params[top].elementAddress = dslValue;
+            break;
+        case EXP:
+            params[top - 1].EXP(&params[top]);
+            top--;
+            break;
+        case MUL:
+            params[top - 1].MUL(&params[top]);
+            top--;
+            break;
+        case DIV:
+            params[top - 1].DIV(&params[top]);
+            top--;
+            break;
+        case ADD:
+            params[top - 1].ADD(&params[top]);
+            top--;
+            break;
+        case SUB:
+            params[top - 1].SUB(&params[top]); top--;
+            break;
+        case MOD:
+            params[top - 1].MOD(&params[top]); top--;
+            break;
+        case XOR:
+            params[top - 1].XOR(&params[top]); top--;
+            break;
+        case BND:
+            params[top - 1].BND(&params[top]); top--;
+            break;
+        case BOR:
+            params[top - 1].BOR(&params[top]); top--;
+            break;
+        case SVL:
+            params[top - 1].SVL(&params[top]); top--;
+            break;
+        case SVR:
+            params[top - 1].SVR(&params[top]); top--;
+            break;
+        case TEQ:
+            params[top - 1].TEQ(&params[top]); top--;
+            break;
+        case TNE:
+            params[top - 1].TNE(&params[top]); top--;
+            break;
+        case TGR:
+            params[top - 1].TGR(&params[top]); top--;
+            break;
+        case TGE:
+            params[top - 1].TGE(&params[top]); top--;
+            break;
+        case TLS:
+            params[top - 1].TLS(&params[top]); top--;
+            break;
+        case TLE:
+            params[top - 1].TLE(&params[top]); top--;
+            break;
+        case AND:
+            params[top - 1].AND(&params[top]); top--;
+            break;
+        case LOR:
+            params[top - 1].LOR(&params[top]); top--;
+            break;
+        case INL:
+            params[BP+dslValue->operand].INC();
+            break;
+        case DEL:
+            params[BP+dslValue->operand].DEC();
+            break;
+        case INC:
+            program[dslValue->operand]->INC();
+            break;
+        case DEC:
+            program[dslValue->operand]->DEC();
+            break;
+        case NOT:
+            params[top].NOT();
+            break;
+        case NEG:
+            params[top].NEG();
+            break;
+        case CTI:
+            params[top].Convert(INTEGER_VALUE);
+            break;
+        case CTD:
+            params[top].Convert(DOUBLE_VALUE);
+            break;
+        case CTC:
+            params[top].Convert(CHAR_VALUE);
+            break;
+        case CTS:
+            params[top].Convert(STRING_VALUE);
+            break;
+        case CTB:
+            params[top].Convert(BOOL_VALUE);
+            break;
+        case JIF:
+            PC = (params[top].bValue) ? PC : dslValue->location; top--;
+            break;
+        case JIT:
+            PC = (params[top].bValue) ? dslValue->location : PC; top--;
+            break;
+        case JMP:
+            PC = dslValue->location;
+            break;
+        case JBF:
+            JumpToBuiltInFunctionNoTrace(dslValue);
+            break;
+        case PSI:
+            params[++top].LiteCopy(dslValue);
+            break;
+        case PSV:
+            params[++top].LiteCopy(program[dslValue->operand]);
+            break;
+        case DFL:
+            params.push_back(DslValue(DFL, params.Count()));
+            break;
+        case PSL:
+            params[++top].LiteCopy(&params[BP+dslValue->operand]);
+            params[top].operand = dslValue->operand;
+            break;
+        case RET:
+            return;
+        case JSR:
+            JumpToSubroutineNoTrace(dslValue);
+            break;
+        case JTB:
+            ProcessJumpTableNoTrace(dslValue);
+            break;
+    }
+}
+
+void CPU::RunNoTrace()
+{
+    bool errorMode = false;
+
+    while(PC < program.Count() )
+    {
+        //If an error has been raised, switch to error mode which only processes the
+        //on error callback if one exists, if not the error is simply sent to the
+        //console and the program exited.
+        if ( errorCode != 0 && !errorMode )
+        {
+            errorMode = true;
+            JumpToOnErrorHandler();
+            errorCode = 0;
+            errorMode = false;
+            continue;
+        }
+        RunInstruction(program[PC++]);
     }
 }
 
 void CPU::RunTrace()
 {
+    DslValue left;
+    DslValue right;
+    bool errorMode = false;
+
     putchar('\n');
     while(PC < program.Count() )
     {
         DisplayASMCodeLine(PC, false);
-        putchar('\t');
-        DslValue *dslValue = program[PC++];
-        switch( dslValue->opcode )
+
+        DslValue *instruction = program[PC++];
+        switch( GetInstructionOperands(instruction, &left, &right) )
         {
-            case DEF:
-                printf(";top = %lld;\tvar %s", top, dslValue->variableName.cStr());
+            case 0:
                 break;
-            case NOP: case END: case PSP: case ERH:
+            case 1:
+                printf(";top = %ld\t", (long)top);
+                left.Print(true);
+                printf("\n");
                 break;
-            case SLV:
-            {
-                OutputValues(&params[BP+params[top - 1].operand], &params[top]);
-                params[BP+params[top - 1].operand].SAV(&params[top]);
-                top--;
-                PrintResult(&params[top]);
-                break;
-            }
-            case SAV:
-                OutputValues(program[dslValue->operand], &params[top]);
-                params[top-1].elementAddress->SAV(&params[top]);
-                top--;
-                top--;
-                PrintResult(program[dslValue->operand]);
-                break;
-            case ADA:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top+1].SAV(&params[top]);
-                ++top;
-                PrintResult(&params[top]);
-                break;
-            case SUA:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top-1].elementAddress->SUB(&params[top]);
-                --top;
-                PrintResult(&params[top]);
-                break;
-            case MUA:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top-1].elementAddress->MUL(&params[top]);
-                --top;
-                PrintResult(&params[top]);
-                break;
-            case DIA:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top-1].elementAddress->DIV(&params[top]);
-                --top;
-                PrintResult(&params[top]);
-                break;
-            case MOA:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top-1].elementAddress->MOD(&params[top]);
-                --top;
-                PrintResult(&params[top]);
-                break;
-            case DCS:
-                break;
-            case PVA:
-                PrintResult(&params[top]);
-                PushVariableAddress(program[dslValue->operand]);
-                PrintResult(&params[top]);
-                break;
-            case PCV:
-                PrintResult(&params[top]);
-                dslValue = GetCollectionElement(dslValue);
-                params[++top].LiteCopy(dslValue);
-                PrintResult(&params[top]);
-                break;
-            case EXP:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].EXP(&params[top]);
-                top--;
-                PrintResult(&params[top]);
-                break;
-            case MUL:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].MUL(&params[top]);
-                top--;
-                PrintResult(&params[top]);
-                break;
-            case DIV:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].DIV(&params[top]);
-                top--;
-                PrintResult(&params[top]);
-                break;
-            case ADD:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].ADD(&params[top]);
-                top--;
-                PrintResult(&params[top]);
-                break;
-            case SUB:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].SUB(&params[top]); top--;
-                break;
-            case MOD:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].MOD(&params[top]); top--;
-                break;
-            case XOR:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].XOR(&params[top]); top--;
-                break;
-            case BND:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].BND(&params[top]); top--;
-                break;
-            case BOR:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].BOR(&params[top]); top--;
-                break;
-            case SVL:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].SVL(&params[top]); top--;
-                break;
-            case SVR:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].SVR(&params[top]); top--;
-                break;
-            case TEQ:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].TEQ(&params[top]); top--;
-                break;
-            case TNE:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].TNE(&params[top]); top--;
-                break;
-            case TGR:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].TGR(&params[top]); top--;
-                break;
-            case TGE:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].TGE(&params[top]); top--;
-                break;
-            case TLS:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].TLS(&params[top]); top--;
-                break;
-            case TLE:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].TLE(&params[top]); top--;
-                break;
-            case AND:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].AND(&params[top]); top--;
-                break;
-            case LOR:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top - 1].LOR(&params[top]); top--;
-                break;
-            case INL:
-                printf(";top = %lld\t", top);
-                params[BP+dslValue->operand].Print(true);
-                params[BP+dslValue->operand].INC();
-                printf(";top = %lld\t", top);
-                params[BP+dslValue->operand].Print(true);
-                break;
-            case DEL:
-                printf(";top = %lld\t", top);
-                params[BP+dslValue->operand].Print(true);
-                params[BP+dslValue->operand].DEC();
-                printf(";top = %lld\t", top);
-                params[BP+dslValue->operand].Print(true);
-                break;
-            case INC:
-                printf(";top = %lld\t", top);
-                program[dslValue->operand]->Print(true);
-                program[dslValue->operand]->INC();
-                printf(";top = %lld\t", top);
-                program[dslValue->operand]->Print(true);
-                break;
-            case DEC:
-                printf(";top = %lld\t", top);
-                program[dslValue->operand]->Print(true);
-                program[dslValue->operand]->DEC();
-                printf(";top = %lld\t", top);
-                program[dslValue->operand]->Print(true);
-                break;
-            case NOT:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].NOT();
-                break;
-            case NEG:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].NEG();
-                break;
-            case CTI:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].Convert(INTEGER_VALUE);
-                break;
-            case CTD:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].Convert(DOUBLE_VALUE);
-                break;
-            case CTC:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].Convert(CHAR_VALUE);
-                break;
-            case CTS:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].Convert(STRING_VALUE);
-                break;
-            case CTB:
-                OutputValues(&params[top - 1], &params[top]);
-                params[top].Convert(BOOL_VALUE);
-                break;
-            case JIF:
-                OutputValues(&params[top - 1], &params[top]);
-                PC = (params[top].bValue) ? PC : dslValue->location; top--;
-                break;
-            case JIT:
-                OutputValues(&params[top - 1], &params[top]);
-                PC = (params[top].bValue) ? dslValue->location : PC; top--;
-                break;
-            case JMP:
-                OutputValues(&params[top - 1], &params[top]);
-                PC = dslValue->location;
-                break;
-            case JBF:
-                JumpToBuiltInFunctionTrace(dslValue);
-                break;
-            case PSI:
-                OutputValues(&params[top + 1], dslValue);
-                params[++top].LiteCopy(dslValue);
-                break;
-            case PSV:
-                OutputValues(&params[top + 1], program[dslValue->operand]);
-                params[++top].LiteCopy(program[dslValue->operand]);
-                break;
-            case DFL:
-                params.push_back(DslValue(DFL, params.Count()));
-                OutputValues(&params[top - 1], &params[top - 1]);
-                break;
-            case PSL:
-                OutputValues(&params[top + 1], &params[BP+dslValue->operand]);
-                params[++top].LiteCopy(&params[BP+dslValue->operand]);
-                params[top].operand = dslValue->operand;
-                printf("\toperand = %lld\toperand = %lld", dslValue->operand, params[top].operand);
-                break;
-            case RET:
-                return;
-            case JSR:
-                JumpToSubroutineTrace(dslValue);
-                break;
-            case JTB:
-                ProcessJumpTableTrace(dslValue);
+            case 2:
+                printf(";top = %ld\t", (long)top);
+                left.Print(true);
+                printf("\t");
+                right.Print(true);
+                printf("\n");
                 break;
         }
-        putchar('\n');
+
+        if ( errorCode != 0 && !errorMode )
+        {
+            errorMode = true;
+            JumpToOnErrorHandler();
+            errorCode = 0;
+            errorMode = false;
+            continue;
+        }
+
+        RunInstruction(instruction);
     }
+}
+
+int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslValue *right)
+{
+    int64_t operands = 0;
+    right = nullptr;
+    left = nullptr;
+
+    switch( instruction->opcode )
+    {
+        case SLV:
+            left = &params[BP+params[top - 1].operand];
+            right = &params[top];
+            operands = 2;
+            break;
+        case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP: case MUL:
+        case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR: case SVL:
+        case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE: case AND:
+        case LOR:
+            right = &params[top];
+            left = params[top-1].elementAddress;
+            operands = 2;
+            break;
+        case DCS:
+        {
+            right = &params[top];
+            auto *var = program[instruction->operand];
+            auto *key = var->indexes.keys[instruction->iValue];
+            left = ((DslValue *)var->indexes.Get(key)->Data());
+            operands = 2;
+            break;
+        }
+        case PVA:
+        {
+            left = program[instruction->operand];
+            if (left->type == COLLECTION )
+            {
+                left = GetCollectionElement(left);
+            }
+            operands = 1;
+            break;
+        }
+        case PCV:
+            left = GetCollectionElement(program[instruction->operand]);
+            left->elementAddress = left;
+            operands = 1;
+            break;
+        case INL: case DEL:
+            left = &params[BP+instruction->operand];
+            operands = 1;
+            break;
+        case INC: case DEC:
+            left = program[instruction->operand];
+            operands = 1;
+            break;
+        case NOT: case NEG: case CTI: case CTD: case CTC: case CTS: case CTB:
+            left = &params[top];
+            operands = 1;
+            break;
+        case JIF: case JIT:
+            left = &params[top];
+            right = instruction;
+            operands = 2;
+            break;
+        case JBF:
+            left = instruction;
+            operands = 1;
+            break;
+        case PSI:
+            left = &params[top+1];
+            operands = 1;
+            break;
+        case PSV:
+            left = program[instruction->operand];
+            operands = 1;
+            break;
+        case DFL:
+            left = new DslValue(DFL, params.Count());
+            break;
+        case PSL:
+            left = &params[BP+instruction->operand];
+            left->operand = instruction->operand;
+            break;
+        case JMP: case JSR: case JTB: case NOP: case DEF: case END: case PSP: case ERH: case EFI:
+        case RET:
+            left = instruction;
+            operands = 1;
+            break;
+    }
+
+    return operands;
 }
 
 CPU::CPU()
@@ -1826,6 +1729,7 @@ CPU::CPU()
     SP.clear();
     A = new DslValue();
     params.Clear();
+    errorCode = 0;
 }
 
 #pragma clang diagnostic pop

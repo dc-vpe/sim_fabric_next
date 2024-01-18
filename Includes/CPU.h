@@ -24,17 +24,15 @@ public:
         delete A;
     }
 
-    void HandleError(const char *msg)
+    /// \desc Raises an error which puts the cpu into error mode
+    ///       and calls the on error event handler if one is
+    ///       present. If an error handler for the current
+    ///       module is not present the default error handler is
+    ///       called.
+    static void RaiseError(int64_t errorId, const char *msg)
     {
-        params[++top].type = STRING_VALUE;
-        params[top].sValue.CopyFromCString(msg);
-        params[++top].type = INTEGER_VALUE;
-        params[top].iValue = 1;
-        JumpToSubroutineNoTrace(program[1+1]);
-    }
-
-    static void RaiseError(const char *msg)
-    {
+        errorCode = errorId;
+        szErrorMsg.CopyFromCString(msg);
     }
 
     /// \desc Displays the lines of code in the program.
@@ -43,31 +41,37 @@ public:
     /// \desc Calls one of the standard built in functions.
     void JumpToBuiltInFunctionNoTrace(DslValue *dslValue);
 
-    /// \desc Calls one of the standard built in functions.
-    void JumpToBuiltInFunctionTrace(DslValue *dslValue);
-
     /// \desc processes the switch jump instruction.
     /// \param dslValue Pointer to the index containing the JTB opcode.
     void ProcessJumpTableNoTrace(DslValue *dslValue);
 
-    /// \desc processes the switch jump instruction.
-    /// \param dslValue Pointer to the index containing the JTB opcode.
-    void ProcessJumpTableTrace(DslValue *dslValue);
-
     /// \desc Processes function calls.
     void JumpToSubroutineNoTrace(DslValue *dslValue);
 
-    /// \desc Processes function calls.
-    void JumpToSubroutineTrace(DslValue *dslValue);
-
     /// \desc Runs the compiled program.
     void Run();
+
+    /// \desc Handles on error events.
+    void JumpToOnErrorHandler();
+
+    /// \desc Executes the single instruction in dsl value.
+    /// \param dslValue Instruction to be executed.
+    void RunInstruction(DslValue *dslValue);
 
     /// \desc Runs and traces the execution of the compiled program.
     void RunTrace();
 
     /// \desc Runs the compiled program without trace information.
     void RunNoTrace();
+
+    /// \desc Gets the operands for an instruction. Only active when the trace flag is
+    ///       set to 1.
+    /// \param instruction Pointer to the next instruction to be executed.
+    /// \param left Left side of the instruction for binary instructions or instruction
+    ///             for unary or no operand instructions.
+    /// \param right Right side of the instruction for binary instructions or location
+    ///              for conditional jump instructions.
+    int64_t GetInstructionOperands(DslValue *instruction, DslValue *left, DslValue *right);
 
     /// \desc Extends the number of elements in a collection at runtime.
     /// \param collection Collection to extend.
@@ -93,28 +97,25 @@ public:
     /// \param variable Pointer to the variable containing the push variable address instruction.
     void PushVariableAddress(DslValue *variable);
 
-    /// \desc Displays out the top of the parameter stack and the right and left values for an operation.
-    void OutputValues(DslValue *left, DslValue *right) const;
+    /// \desc Displays a CPU instruction, used for testing and debugging.
+    /// \param addr address of the instruction to show.
+    static int64_t DisplayASMCodeLine(int64_t addr, bool newline = true);
 
-    /// \desc Displays the results of any alu operation.
-    static void PrintResult(DslValue *result);
-
-/// \desc Displays a CPU instruction, used for testing and debugging.
-/// \param addr address of the instruction to show.
-static int64_t DisplayASMCodeLine(int64_t addr, bool newline = true);
-
-/// \desc built in array of function pointers. Order is same as lexers built in function names list.
-typedef void (CPU::*method_function)();
+    /// \desc built in array of function pointers. Order is same as lexers built in function names list.
+    typedef void (CPU::*method_function)();
 
 private:
 
     int64_t        BP; //stack frame register for local variables.
     int64_t        PC; //program instruction counter.
     Stack<int64_t> SP{};    //Call and return stack.
-    //external params stack is used for performance.
     List<DslValue> params;  //function call parameters stack
     int64_t        top;   //top of params stack
     DslValue       *A;  //Temporary A register storage.
+
+    static int64_t  errorCode;
+    static U8String szErrorMsg;
+    List<DslValue>  eventHandlers; //Event function information in module id order.
 
     static bool ReadFile(U8String *file, U8String *output);
     static void Error(DslValue *error);
@@ -147,6 +148,9 @@ public:
     ///                    the external function does not return a value then this
     ///                    should be set to INTEGER_VALUE of 0.
     void ReturnResult(int64_t totalParams, DslValue *returnValue);
+
+    /// \desc Write local file.
+    void WriteFile(U8String *fileName, int64_t totalParams);
 
     void pfn_string_find();
     void pfn_string_len();

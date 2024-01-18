@@ -11,9 +11,7 @@ includes = 	$(ID)/parser.h  $(ID)/dsl_types.h $(ID)/Lexer.h $(ID)/utf8.h $(ID)/h
 
 sources = 	$(SD)/DSLValue.cpp $(SD)/lexer.cpp $(SD)/parser.cpp $(SD)/KeyWords.cpp $(SD)/token.cpp\
  			$(SD)/U8String.cpp $(SD)/ErrorProcessing.cpp $(SD)/cpu.cpp $(SD)/Collection.cpp $(SD)/main.cpp\
- 			$(SD)/ParseData.cpp $(SD)/JsonParser.cpp\
- 			$(TS)/u8string_tests.cpp $(TS)/list_tests.cpp $(TS)/parser_tests.cpp\
- 			$(TS)/lexer_tests.cpp $(TS)/hashmap_tests.cpp\
+ 			$(SD)/ParseData.cpp $(SD)/JsonParser.cpp
 
 bin/dsl.exe:	 $(sources) $(includes)
 	$(CC) -o bin/dsl.exe $(BUILD) $(sources) -static-libgcc -static-libstdc++
