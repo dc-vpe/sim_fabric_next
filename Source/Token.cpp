@@ -33,13 +33,13 @@ Token::Token(Token *token)
     value = new DslValue(token->value);
     if ( value == nullptr )
     {
-        PrintIssue(2069, "Failed to allocate memory for copy of Token value", true, true);
+        PrintIssue(2504, "Failed to allocate memory for copy of Token value", true, true);
         return;
     }
     identifier = new U8String(token->identifier);
     if ( identifier == nullptr )
     {
-        PrintIssue(2070, "Failed to allocate memory for copy of identifier", true, true);
+        PrintIssue(2506, "Failed to allocate memory for copy of identifier", true, true);
         return;
     }
     location = token->location;
@@ -52,31 +52,8 @@ Token::Token(Token *token)
 Token::Token(DslValue *dslValue)
 {
     readyOnly = false;
-    value = new DslValue();
-
-    value->type = dslValue->type;
+    value = new DslValue(dslValue);
     type = value->type;
-    switch(dslValue->type)
-    {
-        default:
-            break;
-        case INTEGER_VALUE:
-            value->iValue = dslValue->iValue;
-            break;
-        case DOUBLE_VALUE:
-            value->dValue = dslValue->dValue;
-            break;
-        case CHAR_VALUE:
-            value->cValue = dslValue->cValue;
-            break;
-        case STRING_VALUE:
-            value->sValue.CopyFrom(&dslValue->sValue);
-            break;
-        case BOOL_VALUE:
-            value->bValue = dslValue->bValue;
-            break;
-    }
-
     identifier = new U8String();
     modifier = TMScriptScope;
     location = locationInfo;

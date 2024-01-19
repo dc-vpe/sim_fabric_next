@@ -36,10 +36,10 @@ DslValue::DslValue(int64_t i)
     variableName.Clear();
     variableScriptName.Clear();
     type   = INTEGER_VALUE;
-    opcode   = NOP;
+    opcode   = PSI;
     operand  = 0;
     location = 0;
-    indexes        = {};
+    indexes = {};
     elementAddress = nullptr;
     address = nullptr;
     jsonKey        = {};

@@ -37,6 +37,11 @@ class Parser
         EXIT_FUNCTION_CALL_END
     };
 public:
+    Token *GetVariableInfo(Token *token);
+
+    DslValue *OutputCount(int64_t count, int64_t moduleId);
+    DslValue *OutputCode(Token *token, OPCODES opcode);
+
     /// \desc Creates a parser instance with default settings.
     Parser()
     {
@@ -64,11 +69,11 @@ private:
 
     Token *Advance(int64_t offset = 1);
     Token *Peek(int64_t offset = 1);
-    static Token *PushValue(Token *token);
-    static Token *CreateVariable(Token *token);
+    void PushValue(Token *token);
+    void CreateVariable(Token *token);
     Token *ProcessFunctionCall(Token *token);
     static void IncrementOptimization();
-    static Token *CreateOperation(Token *token);
+    Token *CreateOperation(Token *token);
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
     Token *ProcessSwitchStatement(Token *token);

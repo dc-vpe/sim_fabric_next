@@ -14,7 +14,7 @@ private:
     U8String *_n;
     U8String *_f;
     U8String *_s;
-    U8String *_e;
+    List<U8String> *_e;
 public:
 
     /// \desc Module, i.e. class name, of this module.
@@ -27,13 +27,13 @@ public:
     U8String *Script() { return _s; }
 
     /// \desc Gets the full name of the on error function if the script has one defined.
-    U8String *OnError() { return _e; }
+    List<U8String> *OnEvents() { return _e; }
 
     /// \desc Creates a new Module with default values.
     Module() : _n(new U8String("")),
                _f(new U8String("")),
                _s(new U8String("")),
-               _e(new U8String("")) { };
+               _e(new List<U8String>()) { };
 
     /// \desc Creates a new Module with the provided _n, _f, _s.
     /// \param name Name of the module.
@@ -43,7 +43,7 @@ public:
                _n(new U8String(name)),
                _f(new U8String(file)),
                _s(new U8String(script)),
-               _e(new U8String("")) { };
+               _e(new List<U8String>()) { };
 
     /// \desc Releases the memory used by the module.
     ~Module()

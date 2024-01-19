@@ -72,8 +72,8 @@ const char *OpCodeNames[] =
         "MUA",    //Multiply Assign
         "DIA",    //Divide Assign
         "MOA",    //Modulo Assign
-        "ERH",    //Error handler for script file
-        "DCS"     //Save non-static result in a collection during definition
+        "DCS",    //Save non-static result in a collection during definition
+        "EFI"     //Event function information
 };
 
 int64_t  CPU::errorCode;
@@ -111,7 +111,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case CTB: case RET: case END:
         case EXP: case MUL: case DIV: case SUB: case MOD: case ADD:
         case TEQ:  case TNE: case TGR:  case TGE: case TLS:
-        case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA: case ERH:
+        case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA:
         case EFI:
             putchar('\t');
             break;
@@ -145,8 +145,8 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
                 printf("\n");
                 ++addr;
             }
-            printf("%4.4ld\tJMP\t%4.4ld;\t;default\n", (long)startAddr, (long)dslValue->location);
-            return addr - 1;
+            printf("%4.4ld\tJMP\t%4.4ld;\t;default\n", (long)addr, (long)dslValue->location);
+            return addr;
         }
         case PSI:
             printf("\t");
@@ -1234,6 +1234,7 @@ void CPU::ProcessJumpTableNoTrace(DslValue *dslValue)
 
 void CPU::Run()
 {
+    //error handles need setup
     if ( traceInfoLevel == 1 )
     {
         RunTrace();
@@ -1392,7 +1393,8 @@ void CPU::RunInstruction(DslValue *dslValue)
         case END:
             PC = program.Count();
             break;
-        case DEF: case NOP: case PSP: case ERH: case EFI:
+        case EFI:
+        case DEF: case NOP: case PSP:
             break;
         case SLV:
             params[BP+params[top - 1].operand].SAV(&params[top]);
@@ -1711,7 +1713,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             left = &params[BP+instruction->operand];
             left->operand = instruction->operand;
             break;
-        case JMP: case JSR: case JTB: case NOP: case DEF: case END: case PSP: case ERH: case EFI:
+        case JMP: case JSR: case JTB: case NOP: case DEF: case END: case PSP: case EFI:
         case RET:
             left = instruction;
             operands = 1;

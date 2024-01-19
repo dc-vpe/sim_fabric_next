@@ -92,6 +92,9 @@ private:
 
     DslValue *tmpValue; //temporary value structure for converted values.
 
+    TokenTypes last; //Last token type returned from get next token type
+    TokenTypes prev; //Previous token type return from get next token type
+
 public:
     /// \desc Gets the total number of tokens in the list.
     [[nodiscard]] static int64_t TotalTokens()
@@ -177,7 +180,6 @@ private:
     static bool IsOperatorChar(u8chr ch);
     static bool IsValidUnaryPreviousToken(TokenTypes type);
     static bool IsValidStringEscape(char ch);
-    bool CheckNextTokenType(TokenTypes type, bool ignoreErrors);
     TokenTypes GetOperatorToken(bool ignoreErrors);
     u8chr SkipWhiteSpace();
     u8chr PeekNextChar();
@@ -186,7 +188,6 @@ private:
     TokenTypes GetKeyWordTokenType(bool ignoreErrors);
     bool IsSingleLineComment(u8chr ch);
     bool IsMultiLineComment(u8chr ch);
-    OperatorSubType AddOperatorSubType(u8chr ch, u8chr ch1, bool ignoreErrors);
     bool GetNumber(bool ignoreErrors);
     u8chr GetEscapeValue(int64_t factor);
     bool ProcessEscapeCharacter(u8chr &ch, bool ignoreErrors);
@@ -215,7 +216,7 @@ private:
     bool CheckWhileSyntax();
     bool DefineWhile();
     bool DefineCond(const char *szErrorMsg);
-    bool DefineStatementBlock(TokenTypes blockStart, TokenTypes blockEnd);
+    bool DefineStatementBlock(LocationInfo start, TokenTypes blockStart, TokenTypes blockEnd);
     void GetEndOfCaseBlock(LocationInfo switchEnd);
     bool DefineStatements(LocationInfo end, bool noStatements = false);
     bool DefineSwitch();
@@ -224,7 +225,7 @@ private:
     bool CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo &update, LocationInfo &block, LocationInfo &end);
     bool DefineForSection(TokenTypes beginToken, TokenTypes endToken, LocationInfo start, LocationInfo end);
     bool DefineFor();
-    bool SkipToEndOfBlock();
+    bool SkipToEndOfBlock(LocationInfo start);
     bool AddVariableValue();
     static bool ExpressionContinue(TokenTypes type);
     bool CheckFunctionCallSyntax();

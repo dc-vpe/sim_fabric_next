@@ -493,7 +493,7 @@ int main(int argc, char *argv[])
         FILE *fp = fopen(files[ii]->cStr(), "r");
         if( !fp )
         {
-            PrintIssue(2071, true, true, "Can't open file %s", files[ii]->cStr());
+            PrintIssue(2800, true, true, "Can't open file %s", files[ii]->cStr());
             delete lexer;
             return -3;
         }

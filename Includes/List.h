@@ -170,7 +170,7 @@ private:
                 Type *tmp = new Type[index + ALLOC_BLOCK_SIZE];
                 if (tmp == nullptr)
                 {
-                    PrintIssue(2043, "Failed to increase memory for list.", true, true);
+                    PrintIssue(2502, "Failed to increase memory for list.", true, true);
                     return false;
                 }
                 memcpy(tmp, array, size * sizeof(Type));
@@ -184,7 +184,7 @@ private:
                 array = new Type[size];
                 if (array == nullptr)
                 {
-                    PrintIssue(2043, "Failed to increase memory for list.", true, true);
+                    PrintIssue(2503, "Failed to increase memory for list.", true, true);
                     return false;
                 }
             }

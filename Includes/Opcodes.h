@@ -61,7 +61,6 @@ enum OPCODES
     MUA,    //Multiply Assign
     DIA,    //Divide Assign
     MOA,    //Modulo Assign
-    ERH,    //Error handler for script file
     DCS,    //Save non-static result in a collection during definition
     EFI,    //Event function information
 };

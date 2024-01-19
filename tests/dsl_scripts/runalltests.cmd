@@ -91,3 +91,5 @@ dsl create_new_collection_from_existing_collection.dsl
 dsl json_with_neg_exponent.dsl
 dsl airfield.dsl
 dsl lookup_sample.dsl
+dsl continue_while_loop.dsl
+dsl continue_for_loop.dsl
