@@ -134,7 +134,6 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             break;
         case JTB:
         {
-            int64_t startAddr = addr;
             printf("\t\t;switch\n");
             ++addr; //skip JTB
             for (int64_t ii = 0; ii < dslValue->operand; ++ii)
@@ -1382,19 +1381,21 @@ void CPU::JumpToOnErrorHandler()
             }
         }
 
-        RunInstruction(program[PC++]);
+        if ( !RunInstruction(program[PC++]) )
+        {
+            break;
+        }
     }
 }
 
-void CPU::RunInstruction(DslValue *dslValue)
+bool CPU::RunInstruction(DslValue *dslValue)
 {
     switch( dslValue->opcode )
     {
         case END:
             PC = program.Count();
             break;
-        case EFI:
-        case DEF: case NOP: case PSP:
+        case EFI: case DEF: case NOP: case PSP:
             break;
         case SLV:
             params[BP+params[top - 1].operand].SAV(&params[top]);
@@ -1417,11 +1418,9 @@ void CPU::RunInstruction(DslValue *dslValue)
             params[top-1].elementAddress->MUL(&params[top]);
             --top;
             break;
-            break;
         case DIA:
             params[top-1].elementAddress->DIV(&params[top]);
             --top;
-            break;
             break;
         case MOA:
             params[top-1].elementAddress->MOD(&params[top]);
@@ -1558,7 +1557,7 @@ void CPU::RunInstruction(DslValue *dslValue)
             params[top].operand = dslValue->operand;
             break;
         case RET:
-            return;
+            return false;
         case JSR:
             JumpToSubroutineNoTrace(dslValue);
             break;
@@ -1566,6 +1565,8 @@ void CPU::RunInstruction(DslValue *dslValue)
             ProcessJumpTableNoTrace(dslValue);
             break;
     }
+
+    return true;
 }
 
 void CPU::RunNoTrace()
@@ -1585,7 +1586,10 @@ void CPU::RunNoTrace()
             errorMode = false;
             continue;
         }
-        RunInstruction(program[PC++]);
+        if( !RunInstruction(program[PC++]) )
+        {
+            break;
+        }
     }
 }
 
@@ -1628,7 +1632,10 @@ void CPU::RunTrace()
             continue;
         }
 
-        RunInstruction(instruction);
+        if ( !RunInstruction(instruction) )
+        {
+            break;
+        }
     }
 }
 

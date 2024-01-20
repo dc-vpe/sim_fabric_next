@@ -3,15 +3,6 @@
 
 extern void DisplayTokenAsText(int64_t index, TokenTypes type);
 
-enum Operations
-{
-    OperationCode,
-    Value,
-    Variable,
-    Coll,
-
-};
-
 /// \desc Advances the tok position and returns the token at the new position.
 Token *Parser::Advance(int64_t offset)
 {
@@ -43,10 +34,10 @@ Token *Parser::GetVariableInfo(Token *token)
     if ( variable == nullptr )
     {
         PrintIssue(3000,
-                   "Parser error, variable does not exist, this indicates an error in the lexer "
+                   true, true,
+                   "Parser error, variable %s does not exist, this indicates an error in the lexer "
                    "as it did not catch the undefined variable.",
-                   true, true);
-        return nullptr;
+                   token->identifier);
     }
 
     return variable;
@@ -90,7 +81,33 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
                 return nullptr;
             }
             break;
-        case PSL: case PSV: case PCV: case PVA:
+        case PVA:
+            if (token->value->type == COLLECTION )
+            {
+                value = new DslValue(token->value);
+                value->opcode = PVA;
+                if ( !program.push_back(value) )
+                {
+                    return nullptr;
+                }
+            }
+            else
+            {
+                variable = GetVariableInfo(token);
+                if ( variable == nullptr )
+                {
+                    return nullptr;
+                }
+                value = new DslValue(variable->value);
+                value->opcode = token->value->opcode;
+                value->moduleId = token->value->moduleId;
+                if ( !program.push_back(value) )
+                {
+                    return nullptr;
+                }
+            }
+            break;
+        case PSL: case PSV: case PCV:
             variable = GetVariableInfo(token);
             if ( variable == nullptr )
             {
@@ -98,6 +115,7 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             }
             value = new DslValue(variable->value);
             value->opcode = token->value->opcode;
+            //value->operand = token->value->operand;
             value->moduleId = token->value->moduleId;
             if ( !program.push_back(value) )
             {
@@ -150,7 +168,10 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             case EXP: case NEG: case NOT: case MUL: case DIV: case MOD: case ADA: case SUA:
             case MUA: case DIA: case MOA: case ADD: case SUB: case SVL: case SVR: case TLS:
             case TLE: case TGR: case TGE: case TEQ: case TNE: case BND: case XOR: case BOR:
-            case AND: case LOR: case CTI: case CTD: case CTC: case CTS: case CTB:
+            case AND: case LOR: case CTI: case CTD: case CTC: case CTS: case CTB: case SAV:
+            case INC: case DEC: case INL: case DEL:
+            case SLV:
+            case PSP:
             value = new DslValue(token->value);
             value->opcode = opcode;
             if ( !program.push_back(value) )
@@ -360,10 +381,6 @@ bool Parser::Parse()
         return false;
     }
 
-    //conditional Jump location
-    List<int64_t> jumpLocations;
-    List<int64_t> continueLocations;
-
     program.Clear();
 
     position = 0;
@@ -381,6 +398,7 @@ bool Parser::Parse()
     else
     {
         OutputCode(token, NOP);
+        token = tokens[0];
 
         while( token->type != END_OF_SCRIPT )
         {
@@ -453,6 +471,10 @@ bool Parser::Parse()
                     tmp = new Token(token);
                     tmp->value->location = jumpLocations.pop_back() + 1;
                     OutputCode(tmp, JIT);
+                    if ( breakLocations.Count() > 0 )
+                    {
+                        program[breakLocations.pop_back()]->location = program.Count();
+                    }
                     token = Advance();
                     break;
                 case WHILE_BLOCK_BEGIN:
@@ -467,6 +489,11 @@ bool Parser::Parse()
                     break;
                 case CONTINUE:
                     continueLocations.push_back(program.Count());
+                    OutputCode(token, JMP);
+                    token = Advance();
+                    break;
+                case BREAK:
+                    breakLocations.push_back(program.Count());
                     OutputCode(token, JMP);
                     token = Advance();
                     break;
@@ -498,6 +525,10 @@ bool Parser::Parse()
                     if ( continueLocations.Count() > 0 )
                     {
                         program[continueLocations.pop_back()]->location = program.Count() + 1;
+                    }
+                    if ( breakLocations.Count() > 0 )
+                    {
+                        program[breakLocations.pop_back()]->location = program.Count() + 1;
                     }
                     //Set jump back to conditional check
                     tmp = new Token(token);
@@ -678,7 +709,8 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                 }
                 break;
             case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
-                PushValue(token);   //appears on the left side of an assignment expression.
+//                output->Enqueue(token);
+                OutputCode(token, PVA);
                 break;
             default:
                 if (token->is_value())
@@ -781,78 +813,69 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
     //Generate the run time code.
     while( !output.IsEmpty() )
     {
-        Token *t = output.Dequeue();
-        if ( t->is_value() )
+        Token *currentToken = output.Dequeue();
+        if ( currentToken->is_value() )
         {
-            PushValue(t);
+            PushValue(currentToken);
             continue;
         }
-        else if ( t->type == FUNCTION_CALL_END )
+        else if (currentToken->type == FUNCTION_CALL_END )
         {
             continue;
         }
-        else if ( t->type == FUNCTION_CALL_BEGIN )
+        else if (currentToken->type == FUNCTION_CALL_BEGIN )
         {
             //count is number of parameters passed to function call.
-            auto totalParams = (int64_t)t->value->iValue;
+            auto totalParams = (int64_t)currentToken->value->iValue;
 
             OutputCount(totalParams, token->value->moduleId);
 
-            auto id = U8String(t->identifier);
-
-            if ( standardFunctions.Exists(&id) )
+            if ( standardFunctions.Exists(currentToken->identifier) )
             {
-                program.push_back(new DslValue(JBF, standardFunctions.Get(&id)->value->operand));
-                program[program.Count()-1]->moduleId = token->value->moduleId;
+                OutputCode(currentToken, JBF);
             }
             else
             {
-                Token *funInfo = functions.Get(t->identifier);
-                auto *dslValue = new DslValue(JSR);
-                dslValue->variableName.CopyFrom(t->identifier);
-
-                //if location is 0 will be fixed up post parse.
-                dslValue->location = funInfo->value->location;
-                program.push_back(dslValue);
-                program[program.Count()-1]->moduleId = token->value->moduleId;
+                OutputCode(currentToken, JSR);
             }
             continue;
         }
-        else if ( t->type == PREFIX_DEC || t->type == PREFIX_INC || t->type== POSTFIX_DEC || t->type == POSTFIX_INC )
+        else if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC ||
+                 currentToken->type == POSTFIX_DEC || currentToken->type == POSTFIX_INC )
         {
-            Token *variable = GetVariableInfo(t);
+            Token *variable = GetVariableInfo(currentToken);
             if ( variable == nullptr )
             {
                 return nullptr;
             }
+            auto *tmp = new Token(currentToken);
+            tmp->value = new DslValue(variable->value);
+
             auto *dslValue = new DslValue();
-            dslValue->variableName.CopyFrom(variable->identifier);
-            dslValue->operand = variable->value->operand;
-            if ( t->type == PREFIX_DEC || t->type == POSTFIX_DEC)
+            if (currentToken->type == PREFIX_DEC || currentToken->type == POSTFIX_DEC)
             {
                 if ( variable->modifier == TMLocalScope )
                 {
-                    dslValue->opcode = DEL;
+                    tmp->value->opcode = DEL;
                 }
                 else
                 {
-                    dslValue->opcode = DEC;
+                    tmp->value->opcode = DEC;
                 }
             }
             else
             {
                 if ( variable->modifier == TMLocalScope )
                 {
-                    dslValue->opcode = INL;
+                    tmp->value->opcode = INL;
                 }
                 else
                 {
-                    dslValue->opcode = INC;
+                    tmp->value->opcode = INC;
                 }
             }
-            program.push_back(dslValue);
-            program[program.Count()-1]->moduleId = token->value->moduleId;
-            if ( t->type == PREFIX_DEC || t->type == PREFIX_INC )
+            OutputCode(tmp, tmp->value->opcode);
+            if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC )
             {
                 //If no more operations after dec or inc then the dec or inc is terminal for the expression.
                 if (!output.IsEmpty())
@@ -862,37 +885,32 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
             }
             continue;
         }
-        else if ( t->type == PARAMETER_VALUE )
+        else if (currentToken->type == PARAMETER_VALUE )
         {
-            auto *dslValue = new DslValue(PSL, t->value->operand);
-            dslValue->variableName.CopyFrom(t->identifier);
-            program.push_back(dslValue);
-            program[program.Count()-1]->moduleId = token->value->moduleId;
+            OutputCode(currentToken, PSL);
             continue;
         }
-        else if ( t->type == VARIABLE_DEF )
+        else if (currentToken->type == VARIABLE_DEF )
         {
-            CreateVariable(t);
+            CreateVariable(currentToken);
             continue;
         }
-        else if ( t->type == COLLECTION_ADDRESS )
+        else if (currentToken->type == COLLECTION_ADDRESS )
         {
-            Token *variable = GetVariableInfo(t);
-            auto *ca = new DslValue(t->value);
-            ca->operand = variable->value->operand;
-            program.push_back(ca);
+            auto *tmp = new Token(currentToken);
+            auto *variable = GetVariableInfo(currentToken);
+            tmp->value->operand = variable->value->operand;
+            OutputCode(tmp, tmp->value->opcode);
             continue;
         }
-        else if ( t->type == VARIABLE_ADDRESS )
+        else if (currentToken->type == VARIABLE_ADDRESS )
         {
-            auto *d = new DslValue(t->value);
-            d->opcode = PVA;
-            program.push_back(d);
+            OutputCode(currentToken, PVA);
             continue;
         }
-        else if ( t->type == VARIABLE_VALUE || t->type == COLLECTION_VALUE )
+        else if (currentToken->type == VARIABLE_VALUE || currentToken->type == COLLECTION_VALUE )
         {
-            lastVariable = t;
+            lastVariable = currentToken;
             if ( !output.IsEmpty() )
             {
                 TokenTypes type = output.Peek()->type;
@@ -902,44 +920,44 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
                     continue;
                 }
             }
-            PushValue(t);
+            PushValue(currentToken);
             continue;
         }
-        else if (IS_ASSIGNMENT_TOKEN(t->type))
+        else if (IS_ASSIGNMENT_TOKEN(currentToken->type))
         {
-            Token *variable = GetVariableInfo(t);
+            Token *variable = GetVariableInfo(currentToken);
             //If token type is a compound assignment add the operation before the assignment.
-            if ( t->type != ASSIGNMENT)
+            if (currentToken->type != ASSIGNMENT)
             {
-                CreateOperation(t);
+                CreateOperation(currentToken);
             }
-            if ( t->type == ADD_ASSIGNMENT || t->type == SUBTRACT_ASSIGNMENT || t->type == MULTIPLY_ASSIGNMENT ||
-                 t->type == DIVIDE_ASSIGNMENT || t->type == MODULO_ASSIGNMENT )
+            if (currentToken->type == ADD_ASSIGNMENT || currentToken->type == SUBTRACT_ASSIGNMENT || currentToken->type == MULTIPLY_ASSIGNMENT ||
+                currentToken->type == DIVIDE_ASSIGNMENT || currentToken->type == MODULO_ASSIGNMENT )
             {
                 continue;
             }
-            auto *dslValue = new DslValue(variable->value);
+            auto *tmp = new Token(currentToken);
+            tmp->value = new DslValue(variable->value);
             if ( variable->modifier == TMLocalScope )
             {
-                dslValue->opcode = SLV;
+                tmp->value->opcode = SLV;
             }
             else
             {
-                dslValue->opcode = SAV;
+                tmp->value->opcode = SAV;
             }
-            program.push_back(dslValue);
-            program[program.Count()-1]->moduleId = token->value->moduleId;
+            OutputCode(tmp, tmp->value->opcode);
             continue;
         }
-        else if ( t->is_op() )
+        else if ( currentToken->is_op() )
         {
             //else some other operator
-            CreateOperation(t);
+            CreateOperation(currentToken);
             continue;
         }
         fatal = true;
         printf("Lexer missed case should have caught the syntax issue\n");
-        DisplayTokenAsText(-1, t->type);
+        DisplayTokenAsText(-1, currentToken->type);
     }
 
     IncrementOptimization();

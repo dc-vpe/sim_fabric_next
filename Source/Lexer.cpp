@@ -1755,6 +1755,9 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
                 GenerateKey(token, key, index);
             }
             break;
+        case FUNCTION_CALL:
+            GenerateKey(token, key, index);
+            break;
         default:
             PrintIssue(2029, true, false,
                        "%s is not a valid value for a collection element key",

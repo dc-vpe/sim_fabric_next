@@ -37,7 +37,7 @@ class Parser
         EXIT_FUNCTION_CALL_END
     };
 public:
-    Token *GetVariableInfo(Token *token);
+    static Token *GetVariableInfo(Token *token);
 
     DslValue *OutputCount(int64_t count, int64_t moduleId);
     DslValue *OutputCode(Token *token, OPCODES opcode);
@@ -58,6 +58,11 @@ public:
     bool Parse();
 
 private:
+    //tracks jmp locations that need fixed up when the location they jmp to is encountered.
+    List<int64_t> jumpLocations;
+    List<int64_t> continueLocations;
+    List<int64_t> breakLocations;
+
     ///\desc The current parsing position within the lexed list of tokens.
     int64_t position;
 

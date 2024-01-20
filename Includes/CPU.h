@@ -56,7 +56,7 @@ public:
 
     /// \desc Executes the single instruction in dsl value.
     /// \param dslValue Instruction to be executed.
-    void RunInstruction(DslValue *dslValue);
+    bool RunInstruction(DslValue *dslValue);
 
     /// \desc Runs and traces the execution of the compiled program.
     void RunTrace();
