@@ -134,18 +134,17 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             break;
         case JTB:
         {
-            printf("\t\t;switch\n");
+            printf("\t%4.4lld\n", dslValue->location);
             ++addr; //skip JTB
             for (int64_t ii = 0; ii < dslValue->operand; ++ii)
             {
                 DslValue *caseValue = program[addr];
-                printf("%4.4ld\tJMP\t%4.4ld\t;case ", (long)addr, (long)caseValue->location);
+                printf("%4.4lld\tCASE ", addr);
                 caseValue->Print(true);
-                printf("\n");
+                printf(": %4.4lld\n", caseValue->location);
                 ++addr;
             }
-            printf("%4.4ld\tJMP\t%4.4ld;\t;default\n", (long)addr, (long)dslValue->location);
-            return addr;
+            return addr-1;
         }
         case PSI:
             printf("\t");
@@ -1188,7 +1187,7 @@ CPU::method_function builtInMethods[] =
          &CPU::pfn_seed
  };
 
-void CPU::JumpToBuiltInFunctionNoTrace(DslValue *dslValue)
+void CPU::JumpToBuiltInFunction(DslValue *dslValue)
 {
     (this->*builtInMethods[dslValue->operand])();
 }
@@ -1197,7 +1196,7 @@ void CPU::JumpToBuiltInFunctionNoTrace(DslValue *dslValue)
 /// remarks
 ///locals are set in order encountered after parameters and start at operand == 0 and
 ///each local adds 1 to the operand.
-void CPU::JumpToSubroutineNoTrace(DslValue *dslValue)
+void CPU::JumpToSubroutine(DslValue *dslValue)
 {
     auto totalParams = params[top].iValue;
 
@@ -1214,7 +1213,9 @@ void CPU::JumpToSubroutineNoTrace(DslValue *dslValue)
     PC = pcReturn;
 }
 
-void CPU::ProcessJumpTableNoTrace(DslValue *dslValue)
+/// \desc Handles a jump table instruction.
+/// \param dslValue Pointer to the dsl value containing the information needed to execute the jump
+void CPU::ProcessJumpTable(DslValue *dslValue)
 {
     for(int64_t ii=0; ii<dslValue->operand; ++ii)
     {
@@ -1541,7 +1542,7 @@ bool CPU::RunInstruction(DslValue *dslValue)
             PC = dslValue->location;
             break;
         case JBF:
-            JumpToBuiltInFunctionNoTrace(dslValue);
+            JumpToBuiltInFunction(dslValue);
             break;
         case PSI:
             params[++top].LiteCopy(dslValue);
@@ -1559,10 +1560,10 @@ bool CPU::RunInstruction(DslValue *dslValue)
         case RET:
             return false;
         case JSR:
-            JumpToSubroutineNoTrace(dslValue);
+            JumpToSubroutine(dslValue);
             break;
         case JTB:
-            ProcessJumpTableNoTrace(dslValue);
+            ProcessJumpTable(dslValue);
             break;
     }
 

@@ -224,7 +224,12 @@ void Parser::CreateVariable(Token *token)
 /// \desc Parses a function call.
 /// \param token The current token, which is a FUNCTION_CALL_BEGIN
 /// \return The token after the FUNCTION_CALL_END
-/// \remark FUNCTION_CALL_BEGIN PARAM_BEGIN  PARAM_END ... FUNCTION_CALL_END
+/// \remark Functions can be either statements or values. In an expression
+///         it has to be treated as a value and forms part of the expression
+///         that results from running the code to calculate the expression.
+///         At the top level the function has to be treated as a statement
+///         This is why there are two ways of generating output code for
+///         functions.
 Token *Parser::ProcessFunctionCall(Token *token)
 {
     auto id = U8String(token->identifier);
@@ -268,6 +273,46 @@ Token *Parser::ProcessFunctionCall(Token *token)
     return next;
 }
 
+/// \desc The function call is part of an expression.
+/// \param token Begin function call token.
+/// \param output Output queue that is being filled in by shunting yard.
+void Parser::QueueFunctionCall(Token *token, Queue<Token *> *output)
+{
+    auto id = U8String(token->identifier);
+
+    //count is number of parameters passed to function call.
+    auto totalParams = (int64_t)token->value->iValue;
+
+    //queue function call begin
+    output->Enqueue(token);
+
+    Token *next = Advance(); //skip FUNCTION_CALL_BEGIN
+
+    for(int64_t ii=0; ii<totalParams; ++ii)
+    {
+        //Note: Expression always leaves the solution on the top of the params stack
+        next = ShuntingYard(EXIT_PARAM_END, next, output);
+        next = Advance();
+    }
+
+    //Queue function call end
+    auto *callEndToken = new Token(next);
+    callEndToken->identifier->CopyFrom(&id);
+    callEndToken->value->type = INTEGER_VALUE;
+    callEndToken->value->iValue = token->value->iValue;
+
+    if ( standardFunctions.Exists(&id) )
+    {
+        callEndToken->value->opcode = JBF;
+    }
+    else
+    {
+        callEndToken->value->opcode = JSR;
+    }
+
+    output->Enqueue(callEndToken);
+}
+
 Token *Parser::ProcessSwitchStatement(Token *token)
 {
     Expression(EXIT_SWITCH_COND_END);
@@ -277,7 +322,7 @@ Token *Parser::ProcessSwitchStatement(Token *token)
     int64_t checkValuesStartIndex = program.Count();
 
     //Tracks the jumps to each case and default case.
-    List<int64_t> jumpToExit;
+    List<int64_t> jumpToSwitchExit;
 
     //Create the check values and jump locations.
     for(int64_t ii=0; ii<token->totalCases; ++ii)
@@ -298,7 +343,7 @@ Token *Parser::ProcessSwitchStatement(Token *token)
         }
         program[checkValuesStartIndex + ii]->location = program.Count();
         Token *tt = Expression(EXIT_CASE_BLOCK_END);
-        jumpToExit.push_back(program.Count());
+        jumpToSwitchExit.push_back(program.Count());
         OutputCode(tt, NOP);
     }
 
@@ -316,10 +361,10 @@ Token *Parser::ProcessSwitchStatement(Token *token)
 
     //update the case conditional jump locations to the start of each case block.
     //note: default location is contained in the JTB instructions location field.
-    for(int64_t ii=0; ii<jumpToExit.Count(); ++ii)
+    for(int64_t ii=0; ii < jumpToSwitchExit.Count(); ++ii)
     {
-        program[jumpToExit[ii]]->opcode = JMP;
-        program[jumpToExit[ii]]->location = program.Count();
+        program[jumpToSwitchExit[ii]]->opcode   = JMP;
+        program[jumpToSwitchExit[ii]]->location = program.Count();
     }
 
     while (Advance()->type != SWITCH_END)
@@ -424,7 +469,7 @@ bool Parser::Parse()
                     program[jumpLocations.pop_back()]->location = program.Count();
                     token = Advance();
                     break;
-                case FUNCTION_CALL_BEGIN:
+                case FUNCTION_CALL_BEGIN: //Function statement.
                     token = ProcessFunctionCall(token);
                     break;
                 case IF_COND_BEGIN:
@@ -539,6 +584,68 @@ bool Parser::Parse()
                 case SWITCH_BEGIN:
                     token = ProcessSwitchStatement(token);
                     break;
+/*
+{
+Expression(EXIT_SWITCH_COND_END);
+int64_t switchCasesStartIndex = position;
+auto *jumpTableInstruction = OutputCode(token, JTB);
+
+int64_t checkValuesStartIndex = program.Count();
+
+//Tracks the jumps to each case and default case.
+List<int64_t> jumpToSwitchExit;
+
+//Create the check values and jump locations.
+for(int64_t ii=0; ii<token->totalCases; ++ii)
+{
+    while (Advance()->type != CASE_COND_BEGIN)
+    {
+    }
+
+    OutputCode(Advance(), NOP);
+}
+
+//Add the openBlocks for each case
+position = switchCasesStartIndex;
+for(int64_t ii=0; ii<token->totalCases; ++ii)
+{
+    while (Advance()->type != CASE_BLOCK_BEGIN)
+    {
+    }
+    program[checkValuesStartIndex + ii]->location = program.Count();
+    Token *tt = Expression(EXIT_CASE_BLOCK_END);
+    jumpToSwitchExit.push_back(program.Count());
+    OutputCode(tt, NOP);
+}
+
+//If there is a default case
+if ( token->defaultIndex >= 0 )
+{
+    jumpTableInstruction->location = program.Count();
+    position = token->defaultIndex;
+    Expression(EXIT_DEFAULT_BLOCK_END);
+}
+else
+{
+    jumpTableInstruction->location = program.Count();
+}
+
+//update the case conditional jump locations to the start of each case block.
+//note: default location is contained in the JTB instructions location field.
+for(int64_t ii=0; ii < jumpToSwitchExit.Count(); ++ii)
+{
+    program[jumpToSwitchExit[ii]]->opcode   = JMP;
+    program[jumpToSwitchExit[ii]]->location = program.Count();
+}
+
+while (Advance()->type != SWITCH_END)
+{
+}
+
+return Advance();
+}
+
+*/
                 case FUNCTION_CALL_END:
                     token = Advance();
                     break;
@@ -709,8 +816,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                 }
                 break;
             case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
-//                output->Enqueue(token);
-                OutputCode(token, PVA);
+                output->Enqueue(token);
                 break;
             default:
                 if (token->is_value())
@@ -741,8 +847,8 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
             case COLLECTION_VALUE:
                 output->Enqueue(token);
                 break;
-            case FUNCTION_CALL_BEGIN:
-                token = ProcessFunctionCall(token);
+            case FUNCTION_CALL_BEGIN: //Function's value used in an expression.
+                QueueFunctionCall(token, output);
                 break;
             case OPEN_PAREN:
                 ops.push_back(token);
@@ -821,23 +927,12 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
         }
         else if (currentToken->type == FUNCTION_CALL_END )
         {
+            OutputCount(currentToken->value->iValue, token->value->moduleId);
+            OutputCode(currentToken, currentToken->value->opcode);
             continue;
         }
         else if (currentToken->type == FUNCTION_CALL_BEGIN )
         {
-            //count is number of parameters passed to function call.
-            auto totalParams = (int64_t)currentToken->value->iValue;
-
-            OutputCount(totalParams, token->value->moduleId);
-
-            if ( standardFunctions.Exists(currentToken->identifier) )
-            {
-                OutputCode(currentToken, JBF);
-            }
-            else
-            {
-                OutputCode(currentToken, JSR);
-            }
             continue;
         }
         else if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC ||

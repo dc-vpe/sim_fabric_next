@@ -9,6 +9,7 @@
 #include "../Includes/U8String.h"
 #include "../Includes/List.h"
 #include "TokenTypes.h"
+#include "Queue.h"
 
 /// <summary>
 /// Defines the information needed to parse a single element in the rawSource code.

@@ -39,8 +39,8 @@ class Parser
 public:
     static Token *GetVariableInfo(Token *token);
 
-    DslValue *OutputCount(int64_t count, int64_t moduleId);
-    DslValue *OutputCode(Token *token, OPCODES opcode);
+    static DslValue *OutputCount(int64_t count, int64_t moduleId);
+    static DslValue *OutputCode(Token *token, OPCODES opcode);
 
     /// \desc Creates a parser instance with default settings.
     Parser()
@@ -63,6 +63,12 @@ private:
     List<int64_t> continueLocations;
     List<int64_t> breakLocations;
 
+    //Function calls have to be put into the queue when parsed so that they end up
+    //in the correct position for expression evaluation. However, they can't be
+    //inserted directly into the program when encountered. So they are parsed
+    //into their own queue for processing.
+    List<Queue<DslValue> *> queuedFunctionCalls;
+
     ///\desc The current parsing position within the lexed list of tokens.
     int64_t position;
 
@@ -74,11 +80,12 @@ private:
 
     Token *Advance(int64_t offset = 1);
     Token *Peek(int64_t offset = 1);
-    void PushValue(Token *token);
+    static void PushValue(Token *token);
     void CreateVariable(Token *token);
     Token *ProcessFunctionCall(Token *token);
+    void QueueFunctionCall(Token *token, Queue<Token *> *output);
     static void IncrementOptimization();
-    Token *CreateOperation(Token *token);
+    static Token *CreateOperation(Token *token);
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
     Token *ProcessSwitchStatement(Token *token);

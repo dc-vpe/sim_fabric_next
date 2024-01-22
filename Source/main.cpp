@@ -142,7 +142,6 @@ const char *tokenNames[] =
     "PARAM_END",
     "FUNCTION_CALL_END",
     "COLLECTION",
-    "REFERENCE",
     "COLLECTION_BEGIN",
     "COLLECTION_END",
     "COLLECTION_VALUE",

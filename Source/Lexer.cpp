@@ -1313,11 +1313,11 @@ bool Lexer::GetExpressionEnd(bool ignoreErrors, LocationInfo &end)
 bool Lexer::IsStaticExpression(LocationInfo end)
 {
     LocationInfo start = locationInfo;
-    TokenTypes prev = INVALID_TOKEN;
+    TokenTypes prevToken = INVALID_TOKEN;
     TokenTypes type = INVALID_TOKEN;
     while( locationInfo.location < end.location)
     {
-        prev = type;
+        prevToken = type;
         type = GetNextTokenType(true);
         if ( type == ERROR_TOKEN )
         {
@@ -1379,7 +1379,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
     //Last work value in tmpValues list.
     int64_t top = 0;
 
-    TokenTypes prev = INVALID_TOKEN;
+    TokenTypes prevToken = INVALID_TOKEN;
     TokenTypes type = INVALID_TOKEN;
     if ( locationInfo.location == end.location )
     {
@@ -1387,11 +1387,11 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
     }
     while( locationInfo.location < end.location)
     {
-        prev = type;
+        prevToken = type;
         type = GetNextTokenType(ignoreErrors);
         if ( type == UNARY_NEGATIVE || type == UNARY_POSITIVE )
         {
-            if (!IsValidUnaryPreviousToken(prev))
+            if (!IsValidUnaryPreviousToken(prevToken))
             {
                 if (type == UNARY_POSITIVE )
                 {
@@ -1543,7 +1543,7 @@ bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, 
             auto *t = new Token(token);
             t->type = COLLECTION_ADDRESS;
             t->value->type = COLLECTION_ADDRESS;
-            t->value->iValue = token->value->indexes.Count(); //collection elements are parsed from left to right
+            t->value->iValue = index;
             t->value->opcode = DCS;
             t->value->variableName.CopyFrom(&token->value->variableName);
             t->value->variableScriptName.CopyFrom(&token->value->variableScriptName);
@@ -1846,7 +1846,17 @@ bool Lexer::DefineCollection(Token *token)
         DslValue dslValue = {};
         bool isStaticExpression = false;
         isCollectionElement = true;
-        if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, index) )
+        int64_t keyIndex = token->value->indexes.Count();
+        for(int ii=0; ii<token->value->indexes.keys.Count(); ++ii)
+        {
+            if ( key.IsEqual(token->value->indexes.keys[ii]) )
+            {
+                keyIndex = ii;
+                break;
+            }
+        }
+
+        if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, keyIndex) )
         {
             isCollectionElement = false;
             return false;
@@ -3067,21 +3077,6 @@ TokenTypes Lexer::SkipToEndOfStatement()
     return type;
 }
 
-/// \desc Gets the previous token Type.
-/// \return The previous token or INVALID_TOKEN if there is no previous token.
-TokenTypes Lexer::GetPreviousTokenType()
-{
-    if (tokens.Count() > 0 )
-    {
-        Token *token = tokens[tokens.Count()-1];
-        if ( token != nullptr )
-        {
-            return token->type;
-        }
-    }
-    return INVALID_TOKEN;
-}
-
 /// \desc Gets the next token to be read without moving the lexing location.
 /// \param skip Number of tokens to skip ahead, default is 1 which is the next token.
 /// \return The next token type to be read.
@@ -3927,8 +3922,8 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
         case POSTFIX_INC: case POSTFIX_DEC:
         {
             //postfix needs variable to increment or decrement.
-            Token *prev = tokens[tokens.Count()-1];
-            auto *t = new Token(prev);
+            Token *prevToken = tokens[tokens.Count()-1];
+            auto *t = new Token(prevToken);
             t->type = type;
             tokens.push_back(t);
             return type;
@@ -4111,7 +4106,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
         case FOR_UPDATE_BEGIN: case FOR_UPDATE_END: case FOR_BLOCK_BEGIN: case FOR_BLOCK_END: case SWITCH_COND_BEGIN:
         case SWITCH_COND_END: case SWITCH_BEGIN: case SWITCH_END: case CASE_COND_BEGIN: case CASE_COND_END:
         case CASE_BLOCK_BEGIN: case CASE_BLOCK_END: case DEFAULT_BLOCK_BEGIN: case DEFAULT_BLOCK_END: case COLLECTION:
-        case REFERENCE: case COLLECTION_BEGIN: case COLLECTION_END: case COLLECTION_VALUE:
+        case COLLECTION_BEGIN: case COLLECTION_END: case COLLECTION_VALUE:
             return type;
     }
 
@@ -4135,6 +4130,8 @@ Lexer::Lexer()
     blockCount = 0;
     isCollectionElement = false;
     definingAndAssigningVariable = false;
+    prev = INVALID_TOKEN;
+    last = INVALID_TOKEN;
 
     locationInfo.Reset();
 

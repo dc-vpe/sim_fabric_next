@@ -39,14 +39,15 @@ public:
     static void DisplayASMCodeLines();
 
     /// \desc Calls one of the standard built in functions.
-    void JumpToBuiltInFunctionNoTrace(DslValue *dslValue);
+    void JumpToBuiltInFunction(DslValue *dslValue);
+
+    /// \desc Calls a script function.
+    /// \param dslValue Pointer to the dsl value containing the information needed to call script function.
+    void JumpToSubroutine(DslValue *dslValue);
 
     /// \desc processes the switch jump instruction.
     /// \param dslValue Pointer to the index containing the JTB opcode.
-    void ProcessJumpTableNoTrace(DslValue *dslValue);
-
-    /// \desc Processes function calls.
-    void JumpToSubroutineNoTrace(DslValue *dslValue);
+    void ProcessJumpTable(DslValue *dslValue);
 
     /// \desc Runs the compiled program.
     void Run();
