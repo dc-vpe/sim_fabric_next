@@ -157,7 +157,7 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             }
             break;
         case JTB:
-            value = new DslValue(JTB, token->totalCases, token->totalCases);
+            value = new DslValue(JTB, token->totalCases, token->value->location);
             value->moduleId = token->value->moduleId;
             if ( !program.push_back(value) )
             {
@@ -242,7 +242,7 @@ Token *Parser::ProcessFunctionCall(Token *token)
     for(int64_t ii=0; ii<totalParams; ++ii)
     {
         //Note: Expression always leaves the solution on the top of the params stack
-        next = Expression(EXIT_PARAM_END);
+        next = Expression(EXIT_PARAM_END, -1);
         if ( next->type == PARAM_END )
         {
             next = Advance();
@@ -291,7 +291,7 @@ void Parser::QueueFunctionCall(Token *token, Queue<Token *> *output)
     for(int64_t ii=0; ii<totalParams; ++ii)
     {
         //Note: Expression always leaves the solution on the top of the params stack
-        next = ShuntingYard(EXIT_PARAM_END, next, output);
+        next = ShuntingYard(EXIT_PARAM_END, next, output, -1);
         next = Advance();
     }
 
@@ -315,64 +315,130 @@ void Parser::QueueFunctionCall(Token *token, Queue<Token *> *output)
 
 Token *Parser::ProcessSwitchStatement(Token *token)
 {
+    List<int64_t> jumpToEnd;
+
     Expression(EXIT_SWITCH_COND_END);
-    int64_t switchCasesStartIndex = position;
-    auto *jumpTableInstruction = OutputCode(token, JTB);
 
-    int64_t checkValuesStartIndex = program.Count();
+    int64_t jtbLocation = program.Count();
+    auto *jtb = OutputCode(token, JTB);
 
-    //Tracks the jumps to each case and default case.
-    List<int64_t> jumpToSwitchExit;
-
-    //Create the check values and jump locations.
     for(int64_t ii=0; ii<token->totalCases; ++ii)
     {
-        while (Advance()->type != CASE_COND_BEGIN)
-        {
-        }
-
-        OutputCode(Advance(), NOP);
+        jtb->cases[ii]->location = program.Count();
+        //Operand is where the case statements end.
+        Expression(EXIT_LOCATION, token->cases[ii]->operand);
+        jumpToEnd.push_back(program.Count());
+        OutputCode(token, JMP);
     }
 
-    //Add the openBlocks for each case
-    position = switchCasesStartIndex;
-    for(int64_t ii=0; ii<token->totalCases; ++ii)
+    jtb->location = program.Count();
+    for(int64_t ii=0; ii<jumpToEnd.Count(); ++ii)
     {
-        while (Advance()->type != CASE_BLOCK_BEGIN)
-        {
-        }
-        program[checkValuesStartIndex + ii]->location = program.Count();
-        Token *tt = Expression(EXIT_CASE_BLOCK_END);
-        jumpToSwitchExit.push_back(program.Count());
-        OutputCode(tt, NOP);
+        program[jumpToEnd.pop_back()]->location = program.Count();
     }
 
-    //If there is a default case
-    if ( token->defaultIndex >= 0 )
-    {
-        jumpTableInstruction->location = program.Count();
-        position = token->defaultIndex;
-        Expression(EXIT_DEFAULT_BLOCK_END);
-    }
-    else
-    {
-        jumpTableInstruction->location = program.Count();
-    }
-
-    //update the case conditional jump locations to the start of each case block.
-    //note: default location is contained in the JTB instructions location field.
-    for(int64_t ii=0; ii < jumpToSwitchExit.Count(); ++ii)
-    {
-        program[jumpToSwitchExit[ii]]->opcode   = JMP;
-        program[jumpToSwitchExit[ii]]->location = program.Count();
-    }
-
-    while (Advance()->type != SWITCH_END)
-    {
-    }
-
-    return Advance();
+    return token;
 }
+
+
+
+//Token *Parser::ProcessSwitchStatement(Token *token)
+//{
+//    auto *jtb = new Token(token);
+//    token = Advance();
+//
+//    Expression(EXIT_SWITCH_COND_END);
+//    int64_t switchCasesStartIndex = position;
+//    auto *jumpTableInstruction = OutputCode(jtb, JTB);
+//
+//    int64_t checkValuesStartIndex = program.Count();
+//
+//    //Tracks the jumps to each case and default case.
+//    List<int64_t> jumpToSwitchExit;
+//
+//    //Create the check values and jump locations.
+//    for(int64_t ii=0; ii<jtb->totalCases; ++ii)
+//    {
+//        TokenTypes type = Advance()->type;
+//        while( type != CASE_COND_BEGIN )
+//        {
+//            if ( type == SWITCH_BEGIN )
+//            {
+//                while( type != SWITCH_END )
+//                {
+//                    type = Advance()->type;
+//                }
+//            }
+//            type = Advance()->type;
+//        }
+//
+//        //Output the next dsl value as it is the case match value
+//        OutputCode(Advance(), NOP);
+//    }
+//
+//    int64_t breakCount = breakLocations.Count();
+//
+//    //Add the openBlocks for each case
+//    position = switchCasesStartIndex;
+//    for(int64_t ii=0; ii<jtb->totalCases; ++ii)
+//    {
+//        TokenTypes type = Advance()->type;
+//        while( type != CASE_BLOCK_BEGIN )
+//        {
+//            if ( type == SWITCH_BEGIN )
+//            {
+//                while( type != SWITCH_END )
+//                {
+//                    type = Advance()->type;
+//                }
+//            }
+//            type = Advance()->type;
+//        }
+//        program[checkValuesStartIndex + ii]->location = program.Count();
+//        Token *tt = Expression(EXIT_CASE_BLOCK_END);
+//        jumpToSwitchExit.push_back(program.Count());
+//        OutputCode(tt, NOP);
+//    }
+//
+//    //If there is a default case
+//    if ( token->defaultIndex >= 0 )
+//    {
+//        jumpTableInstruction->location = program.Count();
+//        position = token->defaultIndex;
+//        Expression(EXIT_DEFAULT_BLOCK_END);
+//    }
+//    else
+//    {
+//        jumpTableInstruction->location = program.Count();
+//    }
+//
+//    //update the case conditional jump locations to the start of each case block.
+//    //note: default location is contained in the JTB instructions location field.
+//    for(int64_t ii=0; ii < jumpToSwitchExit.Count(); ++ii)
+//    {
+//        program[jumpToSwitchExit[ii]]->opcode   = JMP;
+//        program[jumpToSwitchExit[ii]]->location = program.Count();
+//    }
+//    while( breakLocations.Count() > breakCount )
+//    {
+//        program[breakLocations.pop_back()]->location = program.Count();
+//    }
+//
+//    TokenTypes type = Advance()->type;
+//    while( type != SWITCH_END && type != END_OF_SCRIPT )
+//    {
+//        if ( type == SWITCH_BEGIN )
+//        {
+//            while( type != SWITCH_END )
+//            {
+//                type = Advance()->type;
+//            }
+//        }
+//        type = Advance()->type;
+//    }
+//
+//    return Advance();
+//}
 
 Token *Parser::CreateOperation(Token *token)
 {
@@ -445,6 +511,11 @@ bool Parser::Parse()
         OutputCode(token, NOP);
         token = tokens[0];
 
+        List<int64_t> switchCasesStartIndexes;
+        List<DslValue *> switchJumpTableInstructions;
+        List<int64_t> switchCheckValuesStartIndexes;
+
+
         while( token->type != END_OF_SCRIPT )
         {
             TokenTypes type = token->type;
@@ -473,7 +544,7 @@ bool Parser::Parse()
                     token = ProcessFunctionCall(token);
                     break;
                 case IF_COND_BEGIN:
-                    token = Expression(EXIT_IF_COND_END);
+                    token = Expression(EXIT_IF_COND_END, -1);
                     break;
                 case IF_COND_END:
                     jumpLocations.push_back(program.Count());
@@ -493,6 +564,7 @@ bool Parser::Parse()
                     {
                         program[jumpLocations.pop_back()]->location = program.Count();
                     }
+                    jumpLocations.push_back(JMP);
                     token = Advance();
                     break;
                 case ELSE_BLOCK_BEGIN:
@@ -510,7 +582,7 @@ bool Parser::Parse()
                     {
                         program[continueLocations.pop_back()]->location = program.Count();
                     }
-                    token = Expression(EXIT_WHILE_COND_END);
+                    token = Expression(EXIT_WHILE_COND_END, -1);
                     break;
                 case WHILE_COND_END:
                     tmp = new Token(token);
@@ -543,14 +615,14 @@ bool Parser::Parse()
                     token = Advance();
                     break;
                 case FOR_INIT_BEGIN:
-                    token = Expression(EXIT_FOR_INIT_END);
+                    token = Expression(EXIT_FOR_INIT_END, -1);
                     break;
                 case FOR_INIT_END:
                     token = Advance();
                     break;
                 case FOR_COND_BEGIN:
                     jumpLocations.push_back(program.Count());
-                    token = Expression(EXIT_FOR_COND_END);
+                    token = Expression(EXIT_FOR_COND_END, -1);
                     break;
                 case FOR_COND_END:
                     jumpLocations.push_back(program.Count());
@@ -562,7 +634,7 @@ bool Parser::Parse()
                     token = Advance();
                     break;
                 case FOR_UPDATE_BEGIN:
-                    token = Expression(EXIT_FOR_UPDATE_END);
+                    token = Expression(EXIT_FOR_UPDATE_END, -1);
                     break;
                 case FOR_UPDATE_END:
                     //Update conditional jump to exit
@@ -584,77 +656,15 @@ bool Parser::Parse()
                 case SWITCH_BEGIN:
                     token = ProcessSwitchStatement(token);
                     break;
-/*
-{
-Expression(EXIT_SWITCH_COND_END);
-int64_t switchCasesStartIndex = position;
-auto *jumpTableInstruction = OutputCode(token, JTB);
-
-int64_t checkValuesStartIndex = program.Count();
-
-//Tracks the jumps to each case and default case.
-List<int64_t> jumpToSwitchExit;
-
-//Create the check values and jump locations.
-for(int64_t ii=0; ii<token->totalCases; ++ii)
-{
-    while (Advance()->type != CASE_COND_BEGIN)
-    {
-    }
-
-    OutputCode(Advance(), NOP);
-}
-
-//Add the openBlocks for each case
-position = switchCasesStartIndex;
-for(int64_t ii=0; ii<token->totalCases; ++ii)
-{
-    while (Advance()->type != CASE_BLOCK_BEGIN)
-    {
-    }
-    program[checkValuesStartIndex + ii]->location = program.Count();
-    Token *tt = Expression(EXIT_CASE_BLOCK_END);
-    jumpToSwitchExit.push_back(program.Count());
-    OutputCode(tt, NOP);
-}
-
-//If there is a default case
-if ( token->defaultIndex >= 0 )
-{
-    jumpTableInstruction->location = program.Count();
-    position = token->defaultIndex;
-    Expression(EXIT_DEFAULT_BLOCK_END);
-}
-else
-{
-    jumpTableInstruction->location = program.Count();
-}
-
-//update the case conditional jump locations to the start of each case block.
-//note: default location is contained in the JTB instructions location field.
-for(int64_t ii=0; ii < jumpToSwitchExit.Count(); ++ii)
-{
-    program[jumpToSwitchExit[ii]]->opcode   = JMP;
-    program[jumpToSwitchExit[ii]]->location = program.Count();
-}
-
-while (Advance()->type != SWITCH_END)
-{
-}
-
-return Advance();
-}
-
-*/
                 case FUNCTION_CALL_END:
                     token = Advance();
                     break;
                 case RETURN:
-                    token = Expression(EXIT_SEMICOLON_COMMA);
+                    token = Expression(EXIT_SEMICOLON_COMMA, -1);
                     OutputCode(token, RET);
                     break;
                 default:
-                    token = Expression(EXIT_SEMICOLON_COMMA);
+                    token = Expression(EXIT_SEMICOLON_COMMA, -1);
                     break;
             }
             if ( fatal )
@@ -732,11 +742,12 @@ void Parser::FixUpJumpsToEnd()
 }
 
 /// \desc Checks if the shunting yard expression parser main loop should be exited.
-/// \param parseParam True if expression is parsing a function call parameter, else false.
-/// \param exitExpressionOn The tokens to look for to exit expression parsing.
+/// \param exitExpressionOn The tokens to cause the shunting yard parser to exit.
 /// \param type Current token type being parsed.
+/// \param tokenLocation location override if position is less than this location causes the shunting yard
+///                      parser to exit.
 /// \return True if the shunting yard expression parse loop should be exited, else false.
-bool Parser::ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type)
+bool Parser::ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type, int64_t tokenLocation) const
 {
     if ( type == END_OF_SCRIPT )
     {
@@ -783,6 +794,8 @@ bool Parser::ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type)
             return type == DEFAULT_BLOCK_END;
         case EXIT_FUNCTION_DEF_END:
             return type == FUNCTION_DEF_END;
+        case EXIT_LOCATION:
+            return position < tokenLocation;
     }
 
     return true;
@@ -795,15 +808,20 @@ bool Parser::ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type)
 /// \param token First token in the expression.
 /// \param output Pointer to the output being filled in.
 /// \return A pointer to the output queue containing the ordered token list.
-Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output)
+Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output,
+                            int64_t tokenLocation)
 {
     Stack<Token *> ops;
 
     //This loop forms the core of a shunting yard expression parser.
-    while (!ExitExpression(exitExpressionOn, token->type))
+    while (!ExitExpression(exitExpressionOn, token->type, tokenLocation))
     {
         switch (token->type)
         {
+            case BREAK:
+            case SWITCH_BEGIN:
+                output->Enqueue(token);
+                break;
             case COLLECTION_ADDRESS:
                 {
                     while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN &&
@@ -896,13 +914,13 @@ void Parser::IncrementOptimization()
 
 /// \desc Parses expressions up to the point where rbp right binding power or precedence
 ///       is greater than or equal to the left terms binding power, precedence.
-Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
+Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocation)
 {
     Queue<Token *>    output;
     Stack<DslValue *> values;
 
     Token *token = Peek(0);
-    token = ShuntingYard(exitExpressionOn, token, &output);
+    token = ShuntingYard(exitExpressionOn, token, &output, tokenLocation);
 
     if ( parserInfoLevel == 2 )
     {
@@ -923,6 +941,11 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
         if ( currentToken->is_value() )
         {
             PushValue(currentToken);
+            continue;
+        }
+        else if (currentToken->type == SWITCH_BEGIN )
+        {
+            ProcessSwitchStatement(token);
             continue;
         }
         else if (currentToken->type == FUNCTION_CALL_END )
@@ -1048,6 +1071,12 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn)
         {
             //else some other operator
             CreateOperation(currentToken);
+            continue;
+        }
+        else if ( currentToken->type == BREAK )
+        {
+            breakLocations.push_back(program.Count());
+            OutputCode(currentToken, JMP);
             continue;
         }
         fatal = true;

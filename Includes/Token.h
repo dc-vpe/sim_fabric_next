@@ -43,6 +43,13 @@ public:
     /// \desc Switch statements total cases.
     int64_t totalCases{};
 
+    /// \desc Contains one case for each defined case in the switch statement.
+    ///       location is location where the case location block begins.
+    ///       the case code block begins.
+    ///       The values (iValue, dValue etc.) contain the compare value type.
+    ///
+    List<DslValue *> cases;
+
     /// \desc Total parameters defined if this is a script function.
     int64_t definedParameters{};
 

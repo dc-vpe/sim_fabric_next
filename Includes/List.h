@@ -139,6 +139,17 @@ public:
         }
     }
 
+    /// Copies the Src list to this one.
+    /// \param src Pointer to the source list.
+    void CopyFrom(List<Type> *src)
+    {
+        Clear();
+        for(int64_t ii=0; ii<src->Count(); ++ii)
+        {
+            push_back(src->get(ii));
+        }
+    }
+
     /// \desc Gets size of the list buffer in elements.
     /// \return The number of allocated elements in the list.
     int64_t Size() { return size; }

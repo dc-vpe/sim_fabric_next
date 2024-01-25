@@ -97,6 +97,10 @@ public:
     /// \desc id of the module this instruction is part of.
     int64_t moduleId;
 
+    /// \desc If this is a JTB instruction its cases are placed here. The default case if present is
+    ///       placed at the end.
+    List<DslValue *> cases;
+
     /// \desc Copies the right dslValue to this one.
     /// \param right DslValue containing the data to copy.
     void SAV(DslValue *right);

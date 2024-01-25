@@ -6,9 +6,6 @@
 #include "Lexer.h"
 #include "Queue.h"
 
-/// \desc Index which is the id of the built-in print function. Used as default on error if
-///       on error is not defined for the module.
-#define PRINT_FUNCTION_ID 29
 
 
 /// \desc Defines the parser component. The parser is a LR recursive descent parser.
@@ -34,7 +31,8 @@ class Parser
         EXIT_CASE_BLOCK_END,
         EXIT_DEFAULT_BLOCK_END,
         EXIT_FUNCTION_DEF_END,
-        EXIT_FUNCTION_CALL_END
+        EXIT_FUNCTION_CALL_END,
+        EXIT_LOCATION
     };
 public:
     static Token *GetVariableInfo(Token *token);
@@ -76,12 +74,12 @@ private:
     Token end;
 
     /// \desc Checks if the position is in range of the tokens in the program token list.
-    static bool IsPositionInRange(int64_t pos) { return tokens.Count() > 0 && pos >= 0 && pos < tokens.Count(); }
+    static bool IsPositionInRange(int64_t pos) { return pos >= 0 && pos < tokens.Count(); }
 
     Token *Advance(int64_t offset = 1);
     Token *Peek(int64_t offset = 1);
     static void PushValue(Token *token);
-    void CreateVariable(Token *token);
+    static void CreateVariable(Token *token);
     Token *ProcessFunctionCall(Token *token);
     void QueueFunctionCall(Token *token, Queue<Token *> *output);
     static void IncrementOptimization();
@@ -89,9 +87,9 @@ private:
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
     Token *ProcessSwitchStatement(Token *token);
-    Token *Expression(ExitExpressionOn exitExpressionOn);
-    Token *ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output);
-    static bool ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type);
+    Token *Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocation = -1);
+    Token *ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output, int64_t tokenLocation);
+    [[nodiscard]] bool ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type, int64_t tokenLocation) const;
 };
 
 #endif

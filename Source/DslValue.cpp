@@ -24,6 +24,7 @@ DslValue::DslValue()
     address = nullptr;
     jsonKey        = {};
     moduleId = -1;
+    cases.Clear();
 }
 
 DslValue::DslValue(int64_t i)
@@ -44,6 +45,7 @@ DslValue::DslValue(int64_t i)
     address = nullptr;
     jsonKey        = {};
     moduleId = -1;
+    cases.Clear();
 }
 
 DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
@@ -64,6 +66,7 @@ DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
     address = nullptr;
     jsonKey        = {};
     moduleId = -1;
+    cases.Clear();
 }
 
 DslValue::DslValue(DslValue *dslValue)
@@ -84,6 +87,7 @@ DslValue::DslValue(DslValue *dslValue)
     indexes.CopyFrom(&dslValue->indexes);
     jsonKey.CopyFrom(&dslValue->jsonKey);
     moduleId = dslValue->moduleId;
+    cases.CopyFrom(&dslValue->cases);
 }
 
 DslValue::DslValue(U8String *u8String)
@@ -102,6 +106,7 @@ DslValue::DslValue(U8String *u8String)
     address = nullptr;
     jsonKey        = {};
     moduleId = -1;
+    cases.Clear();
 }
 
 /// \desc Copies the right collection to this one.
@@ -120,6 +125,8 @@ void DslValue::CopyCollection(DslValue *right)
     jsonKey.CopyFrom(&right->jsonKey);
     indexes.Clear();
     moduleId = right->moduleId;
+    cases.CopyFrom(&right->cases);
+
     List<KeyData *> list;
     DslValue::GetKeyData(right, &list);
     for(int ii=0; ii<list.Count(); ++ii)
@@ -190,7 +197,7 @@ void DslValue::ToDouble()
             dValue = sValue.GetDouble();
             break;
         case BOOL_VALUE:
-            dValue = (bValue == true) ? 1.0 : 0.0;
+            dValue = bValue ? 1.0 : 0.0;
             break;
     }
     type = DOUBLE_VALUE;
@@ -222,7 +229,7 @@ void DslValue::ToChar()
             cValue = sValue.get(0);
             break;
         case BOOL_VALUE:
-            cValue = (bValue == true) ? (u8chr)'T' : (u8chr)'F';
+            cValue = bValue ? (u8chr)'T' : (u8chr)'F';
             break;
     }
     type = CHAR_VALUE;
@@ -254,7 +261,7 @@ void DslValue::ToString()
             sValue.set(0, cValue);
             break;
         case BOOL_VALUE:
-            cValue = (bValue == true) ? (u8chr)'T' : (u8chr)'F';
+            cValue = bValue ? (u8chr)'T' : (u8chr)'F';
             break;
     }
     type = STRING_VALUE;
@@ -286,7 +293,7 @@ void DslValue::ToBool()
             bValue = (cValue != 'T') ? "true" : "false";
             break;
         case STRING_VALUE:
-            bValue = sValue.IsEqual("true") ? true : false;
+            bValue = sValue.IsEqual("true");
             break;
     }
     type = BOOL_VALUE;
@@ -1302,7 +1309,7 @@ void DslValue::printItem(bool showEscapes)
             printf("\n");
             return;
         case INTEGER_VALUE:
-            printf("%ld", iValue);
+            printf("%lld", iValue);
             break;
         case DOUBLE_VALUE:
             printf("%f", dValue);

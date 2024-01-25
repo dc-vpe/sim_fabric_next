@@ -1217,14 +1217,30 @@ void CPU::JumpToSubroutine(DslValue *dslValue)
 /// \param dslValue Pointer to the dsl value containing the information needed to execute the jump
 void CPU::ProcessJumpTable(DslValue *dslValue)
 {
-    for(int64_t ii=0; ii<dslValue->operand; ++ii)
+    DslValue *defaultCase = nullptr;
+
+    for(int64_t ii=0; ii<dslValue->cases.Count(); ++ii)
     {
-        if ( params[top].IsEqual(program[PC + ii]) )
+        if ( dslValue->cases[ii]->type == DEFAULT )
         {
-            PC = program[PC + ii]->location;
-            --top;
-            return;
+            defaultCase = dslValue->cases[ii];
         }
+        else
+        {
+            if ( params[top].IsEqual(dslValue->cases[ii]) )
+            {
+                PC = dslValue->cases[ii]->location;
+                --top;
+                return;
+            }
+        }
+    }
+
+    if ( defaultCase != nullptr )
+    {
+        PC = defaultCase->location;
+        --top;
+        return;
     }
 
     //jump to default or out of switch.

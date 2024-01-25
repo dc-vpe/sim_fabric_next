@@ -98,6 +98,12 @@ extern const char *tokenNames[];
 #define IS_STATEMENT(token_stmt_type)  (((token_stmt_type)&SPECIFIC_USE_MASK) == TOKEN_STATEMENT)
 
 
+//The token table makes use of binding power can cause the resharper logic to see it as being
+//able to be simplified. While this is correct, simplification would hide the data that is
+//encoded in the token type.
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "Simplify"
+
 /// \desc Token types are a set of bit flags packed uint32_t value that defines all of the
 /// attributes the parser needs to parse the value into an AST tree.
 enum TokenTypes
@@ -227,5 +233,6 @@ enum TokenTypes
     , COLLECTION_ADDRESS   = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(122)
     , COLON                = TOKEN_SPECIAL   | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(123)
 };
+#pragma clang diagnostic pop
 
 #endif //DSL_CPP_TOKEN_TYPES_H

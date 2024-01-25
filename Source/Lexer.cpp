@@ -2002,13 +2002,24 @@ bool Lexer::DefineIf()
     {
         //Skip the else
         SkipNextTokenType();
+
+        if ( PeekNextTokenType() == ELSE )
+        {
+            SkipToEndOfBlock(start);
+            PrintIssue(2037, "Else without a matching if", true);
+            return false;
+        }
+
         //If this is a chained ELSE IF
+        //Needs to be handled as an else without open close braces
         if ( PeekNextTokenType() == IF )
         {
-            //Skip if so the parse can begin on the condition.
+            //This needs parsed as else { if () { } }
+            tokens.push_back(new Token(ELSE_BLOCK_BEGIN));
             SkipNextTokenType();
-
-            return DefineIf();
+            DefineIf();
+            tokens.push_back(new Token(ELSE_BLOCK_END));
+            return true;
         }
 
         if ( PeekNextTokenType() != OPEN_BLOCK )
@@ -2018,16 +2029,11 @@ bool Lexer::DefineIf()
             return false;
         }
 
-        //else define the else block
+        //define the else block
+        start = locationInfo;
         if (!DefineStatementBlock(start, ELSE_BLOCK_BEGIN, ELSE_BLOCK_END))
         {
             SkipToEndOfBlock(start);
-            return false;
-        }
-        if ( PeekNextTokenType() == ELSE )
-        {
-            SkipToEndOfBlock(start);
-            PrintIssue(2037, "Else without a matching if", true);
             return false;
         }
     }
@@ -2179,17 +2185,20 @@ bool Lexer::DefineStatements(LocationInfo end, bool noStatements)
     return true;
 }
 
+#if false
 /// \desc Processes the condition and the block of statements for a switch statement.
 /// \return True if successful or false if an error occurs.
-bool Lexer::DefineSwitch()
+TokenTypes Lexer::DefineSwitch()
 {
     LocationInfo start = locationInfo;
+
+    auto *token = new Token(SWITCH_BEGIN);
 
     TokenTypes type = GetNextTokenType(true);
     if ( type != OPEN_PAREN )
     {
         PrintIssue(2041, "An open parenthesis must follow the for keyword", true);
-        return false;
+        return ERROR_TOKEN;
     }
 
     int64_t defaultCase = -1;
@@ -2203,7 +2212,7 @@ bool Lexer::DefineSwitch()
     if ( !DefineCond("The ) is missing, switch condition must be enclosed in ()"))
     {
         SkipToEndOfBlock(start);
-        return false;
+        return ERROR_TOKEN;
     }
 
     tokens.push_back(new Token(SWITCH_COND_END));
@@ -2212,7 +2221,7 @@ bool Lexer::DefineSwitch()
     {
         SkipToEndOfBlock(start);
         PrintIssue(2042, "Missing open curly brace after switch condition", true);
-        return false;
+        return ERROR_TOKEN;
     }
 
     LocationInfo saved = locationInfo;
@@ -2220,7 +2229,7 @@ bool Lexer::DefineSwitch()
     {
         SkipToEndOfBlock(start);
         PrintIssue(2043, "Missing close curly brace at end of statement", true);
-        return false;
+        return ERROR_TOKEN;
     }
 
     LocationInfo switchEnd = locationInfo;
@@ -2242,7 +2251,7 @@ bool Lexer::DefineSwitch()
             if ( !DefineDefault(switchEnd) )
             {
                 locationInfo = saved;
-                return false;
+                return ERROR_TOKEN;
             }
         }
         else if ( type == CASE )
@@ -2250,17 +2259,9 @@ bool Lexer::DefineSwitch()
             if (!DefineCase(switchEnd))
             {
                 locationInfo = saved;
-                return false;
+                return ERROR_TOKEN;
             }
             ++switchToken->totalCases;
-        }
-        else
-        {
-            PrintIssue(2044,
-                       "Missing the case key word in switch statement",
-                       true);
-            locationInfo = saved;
-            return false;
         }
     }
 
@@ -2268,8 +2269,156 @@ bool Lexer::DefineSwitch()
     //SkipNextTokenType();
 
     tokens.push_back(new Token(SWITCH_END));
+    return SWITCH_END;
+}
+#else
+
+bool Lexer::DefineCondition(Token *token, LocationInfo start)
+{
+    LocationInfo conditionStart = locationInfo;
+    if ( !SkipToCloseParen(start) )
+    {
+        SkipToEndOfBlock(start);
+        return false;
+    }
+    LocationInfo end = locationInfo;
+    locationInfo = start;
+    if ( !DefineStatements(end) )
+    {
+        SkipToEndOfBlock(start);
+        return false;
+    }
+
+    tokens.push_back(new Token(SWITCH_COND_END));
+
     return true;
 }
+
+
+/// \desc Processes the condition and the block of statements for a switch statement.
+/// \return True if successful or false if an error occurs.
+bool Lexer::DefineSwitch()
+{
+    LocationInfo start = locationInfo;
+
+    TokenTypes type = INVALID_TOKEN;
+
+    auto *token = new Token(SWITCH_BEGIN);
+
+    if ( !DefineCondition(token, start) )
+    {
+        return false;
+    }
+    type = GetNextTokenType(true);
+    if ( type != OPEN_BLOCK )
+    {
+        PrintIssue(2044, true, false,
+                   "Switch statement open curly brace after condition is missing");
+        SkipToEndOfBlock(start);
+        return false;
+    }
+    LocationInfo switchStart = locationInfo;
+    token->value->location = tokens.Count();
+    if ( !SkipToEndOfBlock(start) )
+    {
+        return false;
+    }
+    LocationInfo switchEnd = locationInfo;
+    locationInfo = switchStart;
+    bool defaultSpecified = false;
+
+    List<LocationInfo> locationsStart;
+    List<LocationInfo> locationsEnd;
+    List<DslValue *>   dslValues;
+
+    while( locationInfo.location < switchEnd.location )
+    {
+        type = GetNextTokenType(true);
+        if ( type == CLOSE_BLOCK && locationInfo.location == switchEnd.location )
+        {
+            break;
+        }
+        if ( type != CASE && type != DEFAULT )
+        {
+            PrintIssue(2044, true, false,
+                       "Switch statement open curly brace after condition is missing");
+            SkipToEndOfBlock(start);
+            return false;
+        }
+        if ( type == CASE || type == DEFAULT )
+        {
+            DslValue caseValue;
+            if ( type == CASE )
+            {
+                type = GetNextTokenType(true);
+                if ( !IS_VALUE_TYPE(type) )
+                {
+                    PrintIssue(2088, true, false,
+                               "Case value must be a simple value like integer, double, string, char, or boolean");
+                    SkipToEndOfBlock(start);
+                    return false;
+                }
+                caseValue.SAV(tmpValue);
+            }
+            else
+            {
+                if ( defaultSpecified )
+                {
+                    PrintIssue(2089, "A switch statement can only have one default case", true);
+                    SkipToEndOfBlock(start);
+                    return false;
+                }
+                defaultSpecified = true;
+                auto *dslValue = new DslValue();
+                dslValue->type = DEFAULT;
+                caseValue.SAV(dslValue);
+            }
+            type = GetNextTokenType(true, true);
+            if ( type != COLON )
+            {
+                PrintIssue(2045, true, false,
+                           "A colon must follow the case value or default keyword in a switch statement");
+                SkipToEndOfBlock(start);
+                return false;
+            }
+            if ( PeekNextTokenType() != OPEN_BLOCK )
+            {
+                PrintIssue(2090, true, false,
+                           "Missing open curly brace after case statement");
+                SkipToEndOfBlock(start);
+                return false;
+            }
+            dslValues.push_back(new DslValue(caseValue));
+            locationsStart.push_back(locationInfo);
+            if ( !SkipToEndOfBlock(locationInfo) )
+            {
+                return false;
+            }
+            locationsEnd.push_back(locationInfo);
+        }
+    }
+    for(int64_t ii=0; ii<dslValues.Count(); ++ii)
+    {
+        dslValues[ii]->location = tokens.Count();
+        locationInfo = locationsStart[ii];
+        if ( !DefineStatements(locationsEnd[ii], false) )
+        {
+            SkipToEndOfBlock(start);
+            return false;
+        }
+        dslValues[ii]->operand = tokens.Count();
+    }
+    locationInfo = switchEnd;
+
+    for(int64_t ii=0; ii<dslValues.Count(); ++ii)
+    {
+        token->value->cases.CopyFrom(&dslValues);
+    }
+
+    return true;
+}
+
+#endif
 
 /// \desc Processes the statements that are part of a switch case.
 /// \param switchEnd Location of the end of the switch statement.
@@ -2508,7 +2657,6 @@ bool Lexer::DefineFor()
 /// \desc Skips to the end of a code block.
 bool Lexer::SkipToEndOfBlock(LocationInfo start)
 {
-    int64_t curleyBraces = 0;
     locationInfo = start;
 
     TokenTypes type = INVALID_TOKEN;
@@ -2525,6 +2673,31 @@ bool Lexer::SkipToEndOfBlock(LocationInfo start)
         if ( type == END_OF_SCRIPT )
         {
             PrintIssue(2052, true, false, "Missing close curly brace before end of file.");
+            return false;
+        }
+    }
+    return true;
+}
+
+/// \desc Skips to the end of code enclosed in parens.
+bool Lexer::SkipToCloseParen(LocationInfo start)
+{
+    locationInfo = start;
+
+    TokenTypes type = INVALID_TOKEN;
+    while( type != OPEN_PAREN )
+    {
+        type = GetNextTokenType(true);
+    }
+
+    int64_t parens = locationInfo.Parens();
+
+    while( locationInfo.Parens() >= parens )
+    {
+        type = GetNextTokenType(true);
+        if ( type == END_OF_SCRIPT )
+        {
+            PrintIssue(2087, true, false, "Missing close paren before end of file.");
             return false;
         }
     }
