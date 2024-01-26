@@ -21,9 +21,6 @@ Token::Token()
     modifier = TMScriptScope;
     location = locationInfo;
     readyOnly = false;
-    defaultIndex = -1;
-    totalCases   = 0;
-    definedParameters = 0;
 }
 
 Token::Token(Token *token)
@@ -44,9 +41,6 @@ Token::Token(Token *token)
     }
     location = token->location;
     readyOnly = token->readyOnly;
-    defaultIndex = token->defaultIndex;
-    totalCases   = token->totalCases;
-    definedParameters = token->definedParameters;
 }
 
 Token::Token(DslValue *dslValue)
@@ -57,9 +51,6 @@ Token::Token(DslValue *dslValue)
     identifier = new U8String();
     modifier = TMScriptScope;
     location = locationInfo;
-    defaultIndex = -1;
-    totalCases = 0;
-    definedParameters = 0;
 }
 
 Token::Token(TokenTypes tokenTypes)
@@ -70,9 +61,6 @@ Token::Token(TokenTypes tokenTypes)
     identifier = new U8String();
     modifier = TMScriptScope;
     location = locationInfo;
-    defaultIndex = -1;
-    totalCases = 0;
-    definedParameters = 0;
 }
 
 Token::Token(TokenTypes tokenTypes, U8String *id)
@@ -83,7 +71,4 @@ Token::Token(TokenTypes tokenTypes, U8String *id)
     identifier = new U8String(id);
     modifier = TMScriptScope;
     location      = locationInfo;
-    defaultIndex = -1;
-    totalCases   = 0;
-    definedParameters = 0;
 }

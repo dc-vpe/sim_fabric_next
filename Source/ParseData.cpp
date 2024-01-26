@@ -32,7 +32,12 @@ WarningLevels warningLevel;
 int64_t errors;     //number of errors, if zero no errors happened.
 int64_t warnings;   //number of warnings, if 0 no warnings happened.
 bool fatal; //True if a fatal error occurs.
+
+/// \desc Current lexer location information.
 LocationInfo locationInfo;
+
+/// \desc Previous lexer location information.
+LocationInfo  previousInfo;
 
 //Total test cases run.
 int64_t total_run = 0;

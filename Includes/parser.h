@@ -86,7 +86,6 @@ private:
     static Token *CreateOperation(Token *token);
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
-    Token *ProcessSwitchStatement(Token *token);
     Token *Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocation = -1);
     Token *ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output, int64_t tokenLocation);
     [[nodiscard]] bool ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type, int64_t tokenLocation) const;

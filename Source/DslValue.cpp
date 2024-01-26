@@ -1517,3 +1517,28 @@ bool DslValue::AppendAsJsonText(U8String *buffer)
 
     return true;
 }
+
+const char *DslValue::GetAsString()
+{
+    static U8String out;
+    switch( type )
+    {
+        default:
+            return out.cStr();
+        case INTEGER_VALUE:
+            out.printf((char *)"%lld", iValue);
+            return out.cStr();
+        case DOUBLE_VALUE:
+            out.printf((char *)"%d", dValue);
+            return out.cStr();
+        case CHAR_VALUE:
+            out.push_back(cValue);
+            return out.cStr();
+        case STRING_VALUE:
+            out.CopyFrom(&sValue);
+            return out.cStr();
+        case BOOL_VALUE:
+            out.CopyFromCString(bValue ? "true" : "false");
+            return out.cStr();
+    }
+}

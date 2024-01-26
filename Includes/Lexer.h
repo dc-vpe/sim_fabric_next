@@ -183,7 +183,6 @@ private:
     TokenTypes GetOperatorToken(bool ignoreErrors);
     u8chr SkipWhiteSpace();
     u8chr PeekNextChar();
-    [[maybe_unused]] static bool CheckIdentifier(U8String *u8String);
     bool GetIdentifier();
     TokenTypes GetKeyWordTokenType(bool ignoreErrors);
     bool IsSingleLineComment(u8chr ch);
@@ -203,6 +202,7 @@ private:
     bool DefineVariable();
     bool PushTmpValue(Stack<DslValue *> &values, DslValue *dslValue, int64_t &top);
     bool GetExpressionEnd(bool ignoreErrors, LocationInfo &end);
+    static bool IsStaticType(TokenTypes type);
     bool IsStaticExpression(LocationInfo end);
     bool ProcessStaticExpression(DslValue *dslValue, LocationInfo end, bool ignoreErrors, bool initializeVariable);
     bool ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index);
@@ -213,21 +213,15 @@ private:
     TokenTypes GetKey(Token *token, U8String *key, int64_t &index);
     bool DefineCollection(Token *token);
     bool DefineIf();
-    bool DefineElse();
     bool CheckWhileSyntax();
     bool DefineWhile();
     bool DefineCond(const char *szErrorMsg);
     bool DefineStatementBlock(LocationInfo start, TokenTypes blockStart, TokenTypes blockEnd);
-    void GetEndOfCaseBlock(LocationInfo switchEnd);
     bool DefineStatements(LocationInfo end, bool noStatements = false);
-    bool DefineCondition(Token *token, LocationInfo start);
     bool DefineSwitch();
-    bool DefineCase(LocationInfo switchEnd);
-    bool DefineDefault(LocationInfo switchEnd);
     bool CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo &update, LocationInfo &block, LocationInfo &end);
     bool DefineForSection(TokenTypes beginToken, TokenTypes endToken, LocationInfo start, LocationInfo end);
     bool DefineFor();
-    bool SkipToCloseParen(LocationInfo start);
     bool SkipToEndOfBlock(LocationInfo start);
     bool AddVariableValue();
     static bool ExpressionContinue(TokenTypes type);

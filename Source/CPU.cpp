@@ -133,19 +133,26 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             printf("\t%s\t;param[BP+%ld]", dslValue->variableName.cStr(), (long)dslValue->operand);
             break;
         case JTB:
-        {
-            printf("\t%4.4lld\n", dslValue->location);
-            ++addr; //skip JTB
-            for (int64_t ii = 0; ii < dslValue->operand; ++ii)
+            printf("\tend:%4.4lld, ", dslValue->location);
+            for (int64_t ii = 0; ii < dslValue->cases.Count(); ++ii)
             {
-                DslValue *caseValue = program[addr];
-                printf("%4.4lld\tCASE ", addr);
-                caseValue->Print(true);
-                printf(": %4.4lld\n", caseValue->location);
-                ++addr;
+                DslValue *caseValue = dslValue->cases[ii];
+                if ( caseValue->type == DEFAULT )
+                {
+                    printf("default:");
+                }
+                else
+                {
+                    printf("case ");
+                    caseValue->Print(true);
+                }
+                printf(":%4.4lld", caseValue->location);
+                if ( ii + 1 < dslValue->cases.Count() )
+                {
+                    printf(", ");
+                }
             }
-            return addr-1;
-        }
+            break;
         case PSI:
             printf("\t");
             dslValue->Print(true);
@@ -1243,7 +1250,7 @@ void CPU::ProcessJumpTable(DslValue *dslValue)
         return;
     }
 
-    //jump to default or out of switch.
+    //jump out of switch.
     PC = dslValue->location;
     --top;
 }

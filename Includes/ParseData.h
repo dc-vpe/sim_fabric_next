@@ -39,7 +39,12 @@ extern WarningLevels warningLevel;
 extern int64_t           errors;     //number of errors, if zero no errors happened.
 extern int64_t           warnings;   //number of warnings, if 0 no warnings happened.
 extern bool          fatal; //True if a fatal error occurs.
+
+/// \desc current location information.
 extern LocationInfo  locationInfo;
+
+/// \desc Previous location information.
+extern LocationInfo  previousInfo;
 
 //Total test cases run.
 extern int64_t total_run;

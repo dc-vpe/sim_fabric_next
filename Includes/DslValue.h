@@ -122,6 +122,9 @@ public:
     /// \param showEscapes True if escape codes should display as their \ code, else false.
     void Print(bool showEscapes);
 
+    /// \desc Prints a simple dsl value to the console.
+    void printItem(bool showEscapes);
+
     /// \desc Formats a single character into a json compatible format.
     /// \param ch character to format.
     /// \param out Pointer to U8String to output the formatted text to.
@@ -249,23 +252,19 @@ public:
     /// \return True if the values are equal, else false.
     bool IsValue(int64_t value);
 
-//    DslValue &operator =(DslValue other)
-//    {
-//        if ( this == &other )
-//        {
-//            return *this;
-//        }
-//        DeepCopy(&other);
-//
-//        return *this;
-//    }
-
     /// \desc Gets the dsl values store in the provided collection.
     /// \param dslValue DslValue to get the collections dslValues.
     /// \param keyData Pointer to a caller supplied list that is filled in with the key data information
     ///                for the collection. The list remains unchanged if the dslValue does not contain
     ///                a collection.
     static void GetKeyData(DslValue *dslValue, List<KeyData *> *keyData);
+
+    /// \desc Writes the value of this dsl value to the provided u8String
+    /// \remark This method only works for the base values of the dsl value
+    ///         type. Collections are not supported. The intent of this
+    ///         method is to simplify capturing and output of dsl values
+    ///         that can be pre-calculated at lexer time.
+    const char *GetAsString();
 
 private:
 
@@ -298,9 +297,6 @@ private:
         const double epsilon = 1e-5; //Max allowable difference any value <= to this value is considered equal.
         return std::abs(x - y) <= epsilon * std::abs(x);
     }
-
-    void printItem(bool showEscapes);
-
 };
 
 #endif //DSL_VALUE_H

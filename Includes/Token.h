@@ -36,25 +36,15 @@ public:
     ///in the parser and code generator.
     LocationInfo location;
 
-    /// \desc Switch statements this is the index of the token that begins the default case. If
-    ///       no default case exists this will be set to -1
-    int64_t defaultIndex{};
-
-    /// \desc Switch statements total cases.
-    int64_t totalCases{};
-
-    /// \desc Contains one case for each defined case in the switch statement.
-    ///       location is location where the case location block begins.
-    ///       the case code block begins.
-    ///       The values (iValue, dValue etc.) contain the compare value type.
-    ///
-    List<DslValue *> cases;
-
-    /// \desc Total parameters defined if this is a script function.
-    int64_t definedParameters{};
-
-    /// \desc list of local variables. Local variables can only be declared within a function.
-    List<Token *>localVariables;
+    /// \desc switch information needed for parser.
+    int64_t switchStart;
+    int64_t switchEnd;
+    int64_t switchCondStart;
+    int64_t switchCondEnd;
+    /// \desc Index of the jtb instruction in the program for the
+    ///       switch once the instruction has been generated.
+    int64_t switchIndex;
+    int64_t switchCaseIndex;
 
     /// \desc Create a new empty token.
     Token();
