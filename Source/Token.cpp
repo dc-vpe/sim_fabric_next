@@ -21,6 +21,14 @@ Token::Token()
     modifier = TMScriptScope;
     location = locationInfo;
     readyOnly = false;
+    switchStart = 0;
+    switchEnd = 0;
+    switchCondEnd = 0;
+    switchEnd = 0;
+    switchCondStart = 0;
+    switchIndex = 0;
+    switchCaseIndex = 0;
+    switchIndex = 0;
 }
 
 Token::Token(Token *token)
@@ -30,17 +38,25 @@ Token::Token(Token *token)
     value = new DslValue(token->value);
     if ( value == nullptr )
     {
-        PrintIssue(2504, "Failed to allocate memory for copy of Token value", true, true);
+        PrintIssue(2504, true, false, "Failed to allocate memory for copy of Token value");
         return;
     }
     identifier = new U8String(token->identifier);
     if ( identifier == nullptr )
     {
-        PrintIssue(2506, "Failed to allocate memory for copy of identifier", true, true);
+        PrintIssue(2506, true, false, "Failed to allocate memory for copy of identifier");
         return;
     }
     location = token->location;
     readyOnly = token->readyOnly;
+    switchStart = token->switchStart;
+    switchEnd = token->switchEnd;
+    switchCondEnd = token->switchCondEnd;
+    switchEnd = token->switchEnd;
+    switchCondStart = token->switchCondStart;
+    switchIndex = token->switchIndex;
+    switchCaseIndex = token->switchCaseIndex;
+    switchIndex = token->switchIndex;
 }
 
 Token::Token(DslValue *dslValue)
@@ -51,6 +67,14 @@ Token::Token(DslValue *dslValue)
     identifier = new U8String();
     modifier = TMScriptScope;
     location = locationInfo;
+    switchStart = 0;
+    switchEnd = 0;
+    switchCondEnd = 0;
+    switchEnd = 0;
+    switchCondStart = 0;
+    switchIndex = 0;
+    switchCaseIndex = 0;
+    switchIndex = 0;
 }
 
 Token::Token(TokenTypes tokenTypes)
@@ -61,6 +85,14 @@ Token::Token(TokenTypes tokenTypes)
     identifier = new U8String();
     modifier = TMScriptScope;
     location = locationInfo;
+    switchStart = 0;
+    switchEnd = 0;
+    switchCondEnd = 0;
+    switchEnd = 0;
+    switchCondStart = 0;
+    switchIndex = 0;
+    switchCaseIndex = 0;
+    switchIndex = 0;
 }
 
 Token::Token(TokenTypes tokenTypes, U8String *id)
@@ -71,4 +103,12 @@ Token::Token(TokenTypes tokenTypes, U8String *id)
     identifier = new U8String(id);
     modifier = TMScriptScope;
     location      = locationInfo;
+    switchStart = 0;
+    switchEnd = 0;
+    switchCondEnd = 0;
+    switchEnd = 0;
+    switchCondStart = 0;
+    switchIndex = 0;
+    switchCaseIndex = 0;
+    switchIndex = 0;
 }

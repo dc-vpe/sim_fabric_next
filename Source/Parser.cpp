@@ -1,5 +1,7 @@
 #include "../Includes/Opcodes.h"
 #include "../Includes/parser.h"
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCDFAInspection"
 
 extern void DisplayTokenAsText(int64_t index, TokenTypes type);
 
@@ -28,6 +30,7 @@ Token *Parser::Peek(int64_t offset)
     return tokens[pos];
 }
 
+/// \desc Gets the information about the variable named in the token. This call should always succeed.
 Token *Parser::GetVariableInfo(Token *token)
 {
     Token *variable = variables.Get(token->identifier);
@@ -43,6 +46,9 @@ Token *Parser::GetVariableInfo(Token *token)
     return variable;
 }
 
+/// \desc For instructions that require a count like collection element references or
+///       function calls this method outputs the instruction specifying the count.
+/// \return The filled in instruction.
 DslValue *Parser::OutputCount(int64_t count, int64_t moduleId)
 {
     auto *tokenCount = new Token(new DslValue((int64_t)count));
@@ -50,6 +56,9 @@ DslValue *Parser::OutputCount(int64_t count, int64_t moduleId)
     return OutputCode(tokenCount, PSI);
 }
 
+/// \desc Outputs the instruction code. All of the generated output from the parser
+///       flows though this and the output code functions.
+/// \return The filled in instruction.
 DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
 {
     DslValue *value;
@@ -413,7 +422,7 @@ bool Parser::Parse()
                     token = Expression(EXIT_IF_COND_END, -1);
                     break;
                 case IF_COND_END:
-                    jumpLocations.push_back(program.Count());
+                    ifJumpLocations.push_back(program.Count());
                     OutputCode(token, JIF);
                     token = Advance();
                     break;
@@ -421,35 +430,41 @@ bool Parser::Parse()
                     token = Advance();
                     break;
                 case IF_BLOCK_END:
+                {
+                    int64_t jmp = ifJumpLocations.pop_back();
                     //update jump location to correct location after block end
                     if ( Peek(1)->type == ELSE_BLOCK_BEGIN )
                     {
-                        program[jumpLocations.pop_back()]->location = program.Count() + 1;
+                        program[jmp]->location = program.Count() + 1;
                     }
                     else
                     {
-                        program[jumpLocations.pop_back()]->location = program.Count();
+                        program[jmp]->location = program.Count();
                     }
-                    jumpLocations.push_back(JMP);
                     token = Advance();
                     break;
+                }
                 case ELSE_BLOCK_BEGIN:
-                    jumpLocations.push_back(program.Count());
+                    ifJumpLocations.push_back(program.Count());
                     OutputCode(token, JMP);
                     token = Advance();
                     break;
                 case ELSE_BLOCK_END:
-                    program[jumpLocations.pop_back()]->location = program.Count();
+                    program[ifJumpLocations.pop_back()]->location = program.Count();
                     token = Advance();
                     break;
                 case WHILE_COND_BEGIN:
-                    program[jumpLocations.pop_back()]->location = program.Count();
+                {
+                    int64_t jmp = jumpLocations.pop_back();
+                    jumpLocations.push_back(jmp);
+                    program[jmp]->location = program.Count();
                     if ( continueLocations.Count() > 0 )
                     {
                         program[continueLocations.pop_back()]->location = program.Count();
                     }
                     token = Expression(EXIT_WHILE_COND_END, -1);
                     break;
+                }
                 case WHILE_COND_END:
                     tmp = new Token(token);
                     tmp->value->location = jumpLocations.pop_back() + 1;
@@ -462,7 +477,6 @@ bool Parser::Parse()
                     break;
                 case WHILE_BLOCK_BEGIN:
                     //Add initial jump to condition.
-                    jumpLocations.push_back(program.Count());
                     jumpLocations.push_back(program.Count());
                     OutputCode(token, JMP);
                     token = Advance();
@@ -764,25 +778,6 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
     return token;
 }
 
-void Parser::IncrementOptimization()
-{
-    int64_t start = program.Count() - 4;
-    //var = var + 1; //can be replaced with INC
-    if ( start >= 0 )
-    {
-        if (program[start]->opcode == PSV &&
-            program[start + 1]->opcode == PSV &&
-            program[start + 2]->opcode == PSI &&
-            program[start + 3]->opcode == ADD &&
-            program[start]->operand == program[start + 1]->operand &&
-            program[start + 2]->IsValue(1) )
-        {
-            program[start]->opcode = INC;
-            program.Resize(start + 1);
-        }
-    }
-}
-
 /// \desc Parses expressions up to the point where rbp right binding power or precedence
 ///       is greater than or equal to the left terms binding power, precedence.
 Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocation)
@@ -804,8 +799,6 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
 
     Token *lastVariable; //used for prefix operations
 
-    //switch begin happens before its condition
-    List<Token *> switches;
 
     //Generate the run time code.
     while( !output.IsEmpty() )
@@ -828,7 +821,7 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
             program[t->switchIndex]->location = program.Count();
             continue;
         }
-        else if (currentToken->type == SWITCH_COND_BEGIN )
+        else if (currentToken->type == SWITCH_COND_BEGIN || currentToken->type == FUNCTION_CALL_BEGIN)
         {
             continue;
         }
@@ -858,10 +851,6 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
         {
             OutputCount(currentToken->value->iValue, token->value->moduleId);
             OutputCode(currentToken, currentToken->value->opcode);
-            continue;
-        }
-        else if (currentToken->type == FUNCTION_CALL_BEGIN )
-        {
             continue;
         }
         else if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC ||
@@ -990,7 +979,6 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
         DisplayTokenAsText(-1, currentToken->type);
     }
 
-    IncrementOptimization();
-
     return token;
 }
+#pragma clang diagnostic pop

@@ -38,7 +38,7 @@ public:
         buckets = (HashmapBucket **) calloc(BUCKETS, sizeof(buckets));
         if (buckets == nullptr)
         {
-            PrintIssue(2500, "Error, allocating memory for hashmap.\n", true, true);
+            PrintIssue(2500, true, false, "Error, allocating memory for hashmap.\n");
             return;
         }
     }
@@ -75,7 +75,7 @@ public:
         node = (HashmapBucket *) calloc(1, sizeof(HashmapBucket));
         if (node == nullptr)
         {
-            PrintIssue(2501, "Allocating memory for hashmap.\n", true, true);
+            PrintIssue(2501, true, false, "Allocating memory for hashmap.\n");
             return false;
         }
         node->key   = new U8String(key);

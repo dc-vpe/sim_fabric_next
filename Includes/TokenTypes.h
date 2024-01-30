@@ -47,6 +47,7 @@ enum DSL_TOKEN_OPERATIONS
     TOKEN_PARSER    = (uint32_t) (0x06000000), // token used by parser
     TOKEN_LEXER     = (uint32_t) (0x07000000), // token used by lexer
     TOKEN_SPECIAL   = (uint32_t) (0x08000000), // token is only valid in special cases switch/case value: "key":
+    TOKEN_ERROR     = (uint32_t) (0x09000000), // token is only used for special errors
     //                            0x0F000000   // specific type mask
 };
 
@@ -232,6 +233,7 @@ enum TokenTypes
     , VARIABLE_ADDRESS     = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(121)
     , COLLECTION_ADDRESS   = TOKEN_STATEMENT | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(122)
     , COLON                = TOKEN_SPECIAL   | NONE          | NONE   | SET_BINDING_POWER(3)   | SET_TOKEN_ID(123)
+    , INVALID_EXPRESSION   = TOKEN_ERROR     | NONE          | NONE   | SET_BINDING_POWER(100) | SET_TOKEN_ID(124)
 };
 #pragma clang diagnostic pop
 

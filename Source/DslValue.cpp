@@ -492,7 +492,7 @@ void DslValue::DIV(DslValue *right)
             }
             else
             {
-                PrintIssue(4003, "Divide by zero, result is undefined.", true, true);
+                PrintIssue(4003, true, false, "Divide by zero, result is undefined.");
             }
             break;
         case DOUBLE_VALUE:
@@ -503,7 +503,7 @@ void DslValue::DIV(DslValue *right)
             }
             else
             {
-                PrintIssue(4003, "Divide by zero, result is undefined.", true, true);
+                PrintIssue(4003, true, false, "Divide by zero, result is undefined.");
             }
             break;
         case CHAR_VALUE:
@@ -514,7 +514,7 @@ void DslValue::DIV(DslValue *right)
             }
             else
             {
-                PrintIssue(4003, "Divide by zero, result is undefined.", true, true);
+                PrintIssue(4003, true, false, "Divide by zero, result is undefined.");
             }
             break;
     }
@@ -540,7 +540,7 @@ void DslValue::MOD(DslValue *right)
             }
             else
             {
-                PrintIssue(4004, "Mod by zero, result is undefined.", true, true);
+                PrintIssue(4004, true, false, "Mod by zero, result is undefined.");
             }
             break;
         case CHAR_VALUE:
@@ -551,7 +551,7 @@ void DslValue::MOD(DslValue *right)
             }
             else
             {
-                PrintIssue(4004, "Mod by zero, result is undefined.", true, true);
+                PrintIssue(4004, true, false, "Mod by zero, result is undefined.");
             }
             break;
     }

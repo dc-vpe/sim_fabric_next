@@ -58,13 +58,6 @@ public:
         return get(index);
     }
 
-    /// \desc Peeks at the stack_top of the stack without removing it.
-    /// \return Element on the stack_top of the stack.
-    Type &peek(int64_t offset)
-    {
-        return array[count - offset];
-    }
-
     /// \desc Appends a new element to the list.
     bool push_back(Type type)
     {
@@ -181,7 +174,7 @@ private:
                 Type *tmp = new Type[index + ALLOC_BLOCK_SIZE];
                 if (tmp == nullptr)
                 {
-                    PrintIssue(2502, "Failed to increase memory for list.", true, true);
+                    PrintIssue(2502, true, false, "Failed to increase memory for list.");
                     return false;
                 }
                 memcpy(tmp, array, size * sizeof(Type));
@@ -195,7 +188,7 @@ private:
                 array = new Type[size];
                 if (array == nullptr)
                 {
-                    PrintIssue(2503, "Failed to increase memory for list.", true, true);
+                    PrintIssue(2503, true, false, "Failed to increase memory for list.");
                     return false;
                 }
             }

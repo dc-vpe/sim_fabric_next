@@ -7,23 +7,36 @@
 #include "../Includes/ParseData.h"
 #include "../Includes/CPU.h"
 
-static char szLastErrorMessage[2048] = {'\0'};
-static char szErrorMessage[2048] = {'\0'};
+static char szLastErrorMessage[8192] = {'\0'};
+static char szErrorMessage[8192] = {'\0'};
+static char szMsgBuffer[8192] = {'\0'};
 
 List<U8String *> printedIssues;
 
+/// \desc Prints an issue to the std out.
 void PrintIssue(int64_t number, bool error, bool fatalError, const char *format, ...)
 {
-    char szBuffer[1024];
-
     va_list args;
     va_start (args, format);
-    vsprintf (szBuffer, format, args);
+    vsprintf (szMsgBuffer, format, args);
     va_end(args);
-    PrintIssue(number, szBuffer, error, fatalError);
+    PrintError(number, szMsgBuffer, error, fatalError);
 }
 
-void PrintIssue(int64_t number, const char *msg, bool error, bool fatalError)
+/// \desc Same as PrintError, keeps the sen tool from renumbering this call as the
+///       specific error code is passed into the parent method.
+void PrintPassedIssue(int64_t number, bool error, bool fatalError, const char *format, ...)
+{
+    va_list args;
+    va_start (args, format);
+    vsprintf (szMsgBuffer, format, args);
+    va_end(args);
+    PrintError(number, szMsgBuffer, error, fatalError);
+}
+
+/// \desc Function that is responsible for printing the formatted error message,
+///       updating the error count and setting fatal if a fatal error.
+void PrintError(int64_t number, const char *msg, bool error, bool fatalError)
 {
     fatal = fatalError;
 
@@ -64,7 +77,6 @@ void PrintIssue(int64_t number, const char *msg, bool error, bool fatalError)
             printf("%s", szErrorMessage);
         }
     }
-
 
     if ( error )
     {

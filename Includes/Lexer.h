@@ -215,17 +215,21 @@ private:
     bool DefineIf();
     bool CheckWhileSyntax();
     bool DefineWhile();
-    bool DefineCond(const char *szErrorMsg);
+    bool GetEndOfEnclosedExpression(LocationInfo &end);
+    bool DefineConditionalExpression();
     bool DefineStatementBlock(LocationInfo start, TokenTypes blockStart, TokenTypes blockEnd);
     bool DefineStatements(LocationInfo end, bool noStatements = false);
     bool DefineSwitch();
     bool CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo &update, LocationInfo &block, LocationInfo &end);
     bool DefineForSection(TokenTypes beginToken, TokenTypes endToken, LocationInfo start, LocationInfo end);
     bool DefineFor();
-    bool SkipToEndOfBlock(LocationInfo start);
+    bool SkipToEndOfBlock(LocationInfo start, int64_t errorCode = 2500,
+                          const char *errorMsg = "Missing close curly brace before end of file "
+                                                 "if this happens then the lexer is missing an error check.");
     bool AddVariableValue();
     static bool ExpressionContinue(TokenTypes type);
     bool CheckFunctionCallSyntax();
+    bool SkipInnerFunctionCall();
     int64_t CountFunctionArguments();
     TokenTypes AddFunctionCall();
     bool GetSingleLineComment();
@@ -238,6 +242,7 @@ private:
     void SkipNextTokenType(bool checkColon = false);
     bool IsNumber(u8chr ch);
     TokenTypes GetNextTokenType(bool ignoreErrors = false, bool checkForColon = false);
+    TokenTypes ProcessGetNextTokenType(bool ignoreErrors = false, bool checkForColon = false);
     void GetFullName(U8String *fullName, TokenModifiers scope);
     bool IsVariableDefined(bool ignoreErrors);
     bool IsFunctionDefined(bool ignoreErrors);

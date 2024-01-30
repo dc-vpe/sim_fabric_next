@@ -58,8 +58,11 @@ public:
 private:
     //tracks jmp locations that need fixed up when the location they jmp to is encountered.
     List<int64_t> jumpLocations;
+    List<int64_t> ifJumpLocations;
     List<int64_t> continueLocations;
     List<int64_t> breakLocations;
+
+    List<Token *> switches;
 
     //Function calls have to be put into the queue when parsed so that they end up
     //in the correct position for expression evaluation. However, they can't be
@@ -82,7 +85,6 @@ private:
     static void CreateVariable(Token *token);
     Token *ProcessFunctionCall(Token *token);
     void QueueFunctionCall(Token *token, Queue<Token *> *output);
-    static void IncrementOptimization();
     static Token *CreateOperation(Token *token);
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
