@@ -46,6 +46,9 @@ public:
     int64_t switchIndex;
     int64_t switchCaseIndex;
 
+    /// \desc break locations for this token. The token can be a while, for, or switch statement.
+    List<int64_t> breakLocations;
+
     /// \desc Create a new empty token.
     Token();
 
@@ -75,6 +78,9 @@ public:
 
     /// \desc Checks if the token is a binary (infix) operator.
     [[nodiscard]] bool is_binary() const { return IS_BINARY_OPERATOR(type); }
+
+    /// \desc Checks if the token is a terminal operator. Terminals force evaluation of the operator stack.
+    [[nodiscard]] bool is_terminal() const { return (is_comma() || is_semicolon()); }
 
     /// \desc Gets the associativity of the token.
     /// \return True if the token is left associative, else false.

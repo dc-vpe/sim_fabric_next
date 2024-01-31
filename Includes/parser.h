@@ -60,15 +60,19 @@ private:
     List<int64_t> jumpLocations;
     List<int64_t> ifJumpLocations;
     List<int64_t> continueLocations;
+
+    /// \desc Stack of tokens that allow break to exit.
+    ///       Token type contains the type switch begin, while begin, for begin
+
+    List<Token *> breakableTokens;
+
+    /// \desc location of encountered breaks.
     List<int64_t> breakLocations;
 
     List<Token *> switches;
 
-    //Function calls have to be put into the queue when parsed so that they end up
-    //in the correct position for expression evaluation. However, they can't be
-    //inserted directly into the program when encountered. So they are parsed
-    //into their own queue for processing.
-    List<Queue<DslValue> *> queuedFunctionCalls;
+    /// \desc Function call stack used while processing function calls in expression.
+    List<Token *> functionCalls;
 
     ///\desc The current parsing position within the lexed list of tokens.
     int64_t position;
@@ -83,8 +87,6 @@ private:
     Token *Peek(int64_t offset = 1);
     static void PushValue(Token *token);
     static void CreateVariable(Token *token);
-    Token *ProcessFunctionCall(Token *token);
-    void QueueFunctionCall(Token *token, Queue<Token *> *output);
     static Token *CreateOperation(Token *token);
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();

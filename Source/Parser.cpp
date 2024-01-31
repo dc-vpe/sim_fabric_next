@@ -223,98 +223,6 @@ void Parser::CreateVariable(Token *token)
     OutputCode(token, DEF);
 }
 
-/// \desc Parses a function call.
-/// \param token The current token, which is a FUNCTION_CALL_BEGIN
-/// \return The token after the FUNCTION_CALL_END
-/// \remark Functions can be either statements or values. In an expression
-///         it has to be treated as a value and forms part of the expression
-///         that results from running the code to calculate the expression.
-///         At the top level the function has to be treated as a statement
-///         This is why there are two ways of generating output code for
-///         functions.
-Token *Parser::ProcessFunctionCall(Token *token)
-{
-    auto id = U8String(token->identifier);
-
-    //count is number of parameters passed to function call.
-    auto totalParams = (int64_t)token->value->iValue;
-
-    Token *next = Advance(); //skip FUNCTION_CALL_BEGIN
-
-    for(int64_t ii=0; ii<totalParams; ++ii)
-    {
-        //Note: Expression always leaves the solution on the top of the params stack
-        next = Expression(EXIT_PARAM_END, -1);
-        if ( next->type == PARAM_END )
-        {
-            next = Advance();
-        }
-    }
-
-    //Add parameter count.
-    if ( OutputCount(totalParams, token->value->moduleId) == nullptr )
-    {
-        return next;
-    }
-
-    if ( standardFunctions.Exists(&id) )
-    {
-        if ( !OutputCode(token, JBF) )
-        {
-            return next;
-        }
-    }
-    else
-    {
-        if ( !OutputCode(token, JSR) )
-        {
-            return next;
-        }
-    }
-
-    return next;
-}
-
-/// \desc The function call is part of an expression.
-/// \param token Begin function call token.
-/// \param output Output queue that is being filled in by shunting yard.
-void Parser::QueueFunctionCall(Token *token, Queue<Token *> *output)
-{
-    auto id = U8String(token->identifier);
-
-    //count is number of parameters passed to function call.
-    auto totalParams = (int64_t)token->value->iValue;
-
-    //queue function call begin
-    output->Enqueue(token);
-
-    Token *next = Advance(); //skip FUNCTION_CALL_BEGIN
-
-    for(int64_t ii=0; ii<totalParams; ++ii)
-    {
-        //Note: Expression always leaves the solution on the top of the params stack
-        next = ShuntingYard(EXIT_PARAM_END, next, output, -1);
-        next = Advance();
-    }
-
-    //Queue function call end
-    auto *callEndToken = new Token(next);
-    callEndToken->identifier->CopyFrom(&id);
-    callEndToken->value->type = INTEGER_VALUE;
-    callEndToken->value->iValue = token->value->iValue;
-
-    if ( standardFunctions.Exists(&id) )
-    {
-        callEndToken->value->opcode = JBF;
-    }
-    else
-    {
-        callEndToken->value->opcode = JSR;
-    }
-
-    output->Enqueue(callEndToken);
-}
-
 Token *Parser::CreateOperation(Token *token)
 {
     switch( token->type )
@@ -386,176 +294,7 @@ bool Parser::Parse()
         OutputCode(token, NOP);
         token = tokens[0];
 
-        List<int64_t> switchCasesStartIndexes;
-        List<DslValue *> switchJumpTableInstructions;
-        List<int64_t> switchCheckValuesStartIndexes;
-
-
-        while( token->type != END_OF_SCRIPT )
-        {
-            TokenTypes type = token->type;
-            switch( type )
-            {
-                case VARIABLE_DEF:
-                    CreateVariable(token);
-                    token = Advance();
-                    break;
-                case FUNCTION_DEF_BEGIN:
-                {
-                    jumpLocations.push_back(program.Count());
-                    OutputCode(token, JMP);
-                    Token *funInfo = functions.Get(token->identifier);
-                    funInfo->value->location = program.Count();
-                    functions.Set(token->identifier, funInfo);
-                    token = Advance();
-                    break;
-                }
-                case FUNCTION_DEF_END:
-                    OutputCode(token, RET);
-                    program[jumpLocations.pop_back()]->location = program.Count();
-                    token = Advance();
-                    break;
-                case FUNCTION_CALL_BEGIN: //Function statement.
-                    token = ProcessFunctionCall(token);
-                    break;
-                case IF_COND_BEGIN:
-                    token = Expression(EXIT_IF_COND_END, -1);
-                    break;
-                case IF_COND_END:
-                    ifJumpLocations.push_back(program.Count());
-                    OutputCode(token, JIF);
-                    token = Advance();
-                    break;
-                case IF_BLOCK_BEGIN:
-                    token = Advance();
-                    break;
-                case IF_BLOCK_END:
-                {
-                    int64_t jmp = ifJumpLocations.pop_back();
-                    //update jump location to correct location after block end
-                    if ( Peek(1)->type == ELSE_BLOCK_BEGIN )
-                    {
-                        program[jmp]->location = program.Count() + 1;
-                    }
-                    else
-                    {
-                        program[jmp]->location = program.Count();
-                    }
-                    token = Advance();
-                    break;
-                }
-                case ELSE_BLOCK_BEGIN:
-                    ifJumpLocations.push_back(program.Count());
-                    OutputCode(token, JMP);
-                    token = Advance();
-                    break;
-                case ELSE_BLOCK_END:
-                    program[ifJumpLocations.pop_back()]->location = program.Count();
-                    token = Advance();
-                    break;
-                case WHILE_COND_BEGIN:
-                {
-                    int64_t jmp = jumpLocations.pop_back();
-                    jumpLocations.push_back(jmp);
-                    program[jmp]->location = program.Count();
-                    if ( continueLocations.Count() > 0 )
-                    {
-                        program[continueLocations.pop_back()]->location = program.Count();
-                    }
-                    token = Expression(EXIT_WHILE_COND_END, -1);
-                    break;
-                }
-                case WHILE_COND_END:
-                    tmp = new Token(token);
-                    tmp->value->location = jumpLocations.pop_back() + 1;
-                    OutputCode(tmp, JIT);
-                    if ( breakLocations.Count() > 0 )
-                    {
-                        program[breakLocations.pop_back()]->location = program.Count();
-                    }
-                    token = Advance();
-                    break;
-                case WHILE_BLOCK_BEGIN:
-                    //Add initial jump to condition.
-                    jumpLocations.push_back(program.Count());
-                    OutputCode(token, JMP);
-                    token = Advance();
-                    break;
-                case WHILE_BLOCK_END:
-                    token = Advance();
-                    break;
-                case CONTINUE:
-                    continueLocations.push_back(program.Count());
-                    OutputCode(token, JMP);
-                    token = Advance();
-                    break;
-                case BREAK:
-                    breakLocations.push_back(program.Count());
-                    OutputCode(token, JMP);
-                    token = Advance();
-                    break;
-                case FOR_INIT_BEGIN:
-                    token = Expression(EXIT_FOR_INIT_END, -1);
-                    break;
-                case FOR_INIT_END:
-                    token = Advance();
-                    break;
-                case FOR_COND_BEGIN:
-                    jumpLocations.push_back(program.Count());
-                    token = Expression(EXIT_FOR_COND_END, -1);
-                    break;
-                case FOR_COND_END:
-                    jumpLocations.push_back(program.Count());
-                    OutputCode(token, JIF);
-                    token = Advance();
-                    break;
-                case FOR_BLOCK_BEGIN:
-                case FOR_BLOCK_END:
-                    token = Advance();
-                    break;
-                case FOR_UPDATE_BEGIN:
-                    token = Expression(EXIT_FOR_UPDATE_END, -1);
-                    break;
-                case FOR_UPDATE_END:
-                    //Update conditional jump to exit
-                    program[jumpLocations.pop_back()]->location = program.Count() + 1;
-                    if ( continueLocations.Count() > 0 )
-                    {
-                        program[continueLocations.pop_back()]->location = program.Count() + 1;
-                    }
-                    if ( breakLocations.Count() > 0 )
-                    {
-                        program[breakLocations.pop_back()]->location = program.Count() + 1;
-                    }
-                    //Set jump back to conditional check
-                    tmp = new Token(token);
-                    tmp->value->location = jumpLocations.pop_back();
-                    OutputCode(tmp, JMP);
-                    token = Advance();
-                    break;
-                case SWITCH_BEGIN:
-                    token = Expression(EXIT_LOCATION, token->switchEnd);
-                    break;
-                case FUNCTION_CALL_END:
-                    token = Advance();
-                    break;
-                case RETURN:
-                    token = Expression(EXIT_SEMICOLON_COMMA, -1);
-                    OutputCode(token, RET);
-                    break;
-                default:
-                    token = Expression(EXIT_SEMICOLON_COMMA, -1);
-                    break;
-            }
-            if ( fatal )
-            {
-                return false;
-            }
-            if ( token->is_semicolon() || token->is_comma() )
-            {
-                token = Advance();
-            }
-        }
+        Expression(EXIT_LOCATION, tokens.Count());
     }
 
     OutputCode(token, END);
@@ -571,16 +310,6 @@ bool Parser::Parse()
         token->value->moduleId = ii+1;
         OutputCode(token, EFI);
     }
-
-//
-//
-//    value = new DslValue(JBF, standardFunctions.Get(token->identifier)->value->operand);
-//    value->moduleId = token->value->moduleId;
-//    if ( !program.push_back(value) )
-//    {
-//        return nullptr;
-//    }
-
 
     bool result = true;
 
@@ -698,15 +427,49 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
     {
         switch (token->type)
         {
-            case BREAK:
-            case SWITCH_BEGIN:
-            case SWITCH_END:
-            case SWITCH_COND_BEGIN:
-            case SWITCH_COND_END:
-            case CASE_BLOCK_BEGIN:
-            case CASE_BLOCK_END:
+            case BREAK: case SWITCH_BEGIN: case SWITCH_COND_BEGIN: case CASE_BLOCK_BEGIN: case WHILE_COND_BEGIN:
+            case WHILE_BLOCK_BEGIN: case IF_COND_BEGIN: case IF_BLOCK_BEGIN: case ELSE_BLOCK_BEGIN:
+            case FOR_UPDATE_BEGIN: case FOR_BLOCK_BEGIN: case FOR_INIT_BEGIN: case FOR_COND_BEGIN:
+            case PARAM_END: case PARAM_BEGIN: case FUNCTION_CALL_END: case END_OF_SCRIPT:
+            case DEFAULT_BLOCK_BEGIN: case DEFAULT_BLOCK_END: case FUNCTION_PARAMETER:
                 output->Enqueue(token);
                 break;
+            case FUNCTION_DEF_BEGIN:
+                {
+                    output->Enqueue(token);
+                    auto *t = functions.Get(token->identifier);
+                    printf("%s", t->identifier->cStr());
+                    break;
+                }
+            case FUNCTION_DEF_END:
+            {
+                output->Enqueue(token);
+                break;
+            }
+            case WHILE_BLOCK_END: case CASE_BLOCK_END: case SWITCH_END: case FOR_COND_END: case FOR_INIT_END:
+            case FOR_UPDATE_END: case FOR_BLOCK_END: case IF_BLOCK_END: case IF_COND_END: case ELSE_BLOCK_END:
+            case WHILE_COND_END: case SWITCH_COND_END:
+                while( ops.top() != 0 )
+                {
+                    output->Enqueue(ops.pop_back());
+                }
+                output->Enqueue(token);
+                break;
+            case FUNCTION_CALL_BEGIN: //Function's value used in an expression.
+            {
+                auto id = U8String(token->identifier);
+                if ( standardFunctions.Exists(&id) )
+                {
+                    token->value->opcode = JBF;
+                }
+                else
+                {
+                    token->value->opcode = JSR;
+                }
+                //queue function call begin
+                output->Enqueue(token);
+                break;
+            }
             case COLLECTION_ADDRESS:
                 {
                     while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN &&
@@ -718,8 +481,22 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                     output->Enqueue(token);
                 }
                 break;
+            case VARIABLE_DEF: case VARIABLE_VALUE: case PARAMETER_VALUE: case COLLECTION_VALUE:
             case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
                 output->Enqueue(token);
+                break;
+            case OPEN_PAREN:
+                ops.push_back(token);
+                break;
+            case CLOSE_PAREN:
+                while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN)
+                {
+                    output->Enqueue(ops.pop_back());
+                }
+                if (ops.top() != 0 && ops.peek(1)->type == OPEN_PAREN)
+                {
+                    ops.pop_back();
+                }
                 break;
             default:
                 if (token->is_value())
@@ -737,33 +514,18 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                 else if (token->is_binary())
                 {
                     while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN && (token->bp() < ops.peek(1)->bp() ||
-                           (token->bp() == ops.peek(1)->bp() && token->is_left_assoc())))
+                                                                                 (token->bp() == ops.peek(1)->bp() && token->is_left_assoc())))
                     {
                         output->Enqueue(ops.pop_back());
                     }
                     ops.push_back(token);
                 }
-                break;
-            case VARIABLE_DEF:
-            case VARIABLE_VALUE:
-            case PARAMETER_VALUE:
-            case COLLECTION_VALUE:
-                output->Enqueue(token);
-                break;
-            case FUNCTION_CALL_BEGIN: //Function's value used in an expression.
-                QueueFunctionCall(token, output);
-                break;
-            case OPEN_PAREN:
-                ops.push_back(token);
-                break;
-            case CLOSE_PAREN:
-                while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN)
+                else if (token->is_terminal())
                 {
-                    output->Enqueue(ops.pop_back());
-                }
-                if (ops.top() != 0 && ops.peek(1)->type == OPEN_PAREN)
-                {
-                    ops.pop_back();
+                    while( ops.top() != 0 )
+                    {
+                        output->Enqueue(ops.pop_back());
+                    }
                 }
                 break;
         }
@@ -799,184 +561,336 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
 
     Token *lastVariable; //used for prefix operations
 
-
     //Generate the run time code.
     while( !output.IsEmpty() )
     {
         Token *currentToken = output.Dequeue();
-        if ( currentToken->is_value() )
+        switch(currentToken->type)
         {
-            PushValue(currentToken);
-            continue;
-        }
-        else if (currentToken->type == SWITCH_BEGIN )
-        {
-            currentToken->switchCaseIndex = 0;
-            switches.push_back(currentToken);
-            continue;
-        }
-        else if (currentToken->type == SWITCH_END )
-        {
-            auto *t = switches.pop_back();
-            program[t->switchIndex]->location = program.Count();
-            continue;
-        }
-        else if (currentToken->type == SWITCH_COND_BEGIN || currentToken->type == FUNCTION_CALL_BEGIN)
-        {
-            continue;
-        }
-        else if ( currentToken->type == SWITCH_COND_END )
-        {
-            auto *t = switches.pop_back();
-            t->switchIndex = program.Count();
-            OutputCode(t, JTB);
-            switches.push_back(t);
-            continue;
-        }
-        else if (currentToken->type == CASE_BLOCK_BEGIN )
-        {
-            auto *t = switches.pop_back();
-            program[t->switchIndex]->cases[t->switchCaseIndex]->location = program.Count();
-            switches.push_back(t);
-            continue;
-        }
-        else if (currentToken->type == CASE_BLOCK_END )
-        {
-            auto *t = switches.pop_back();
-            t->switchCaseIndex++;
-            switches.push_back(t);
-            continue;
-        }
-        else if (currentToken->type == FUNCTION_CALL_END )
-        {
-            OutputCount(currentToken->value->iValue, token->value->moduleId);
-            OutputCode(currentToken, currentToken->value->opcode);
-            continue;
-        }
-        else if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC ||
-                 currentToken->type == POSTFIX_DEC || currentToken->type == POSTFIX_INC )
-        {
-            Token *variable = GetVariableInfo(currentToken);
-            if ( variable == nullptr )
+            case WHILE_COND_BEGIN:
             {
-                return nullptr;
+                breakableTokens.push_back(currentToken);
+                int64_t jmp = jumpLocations.pop_back();
+                jumpLocations.push_back(jmp);
+                program[jmp]->location = program.Count();
+                if ( continueLocations.Count() > 0 )
+                {
+                    program[continueLocations.pop_back()]->location = program.Count();
+                }
+                break;
             }
-            auto *tmp = new Token(currentToken);
-            tmp->value = new DslValue(variable->value);
+            case WHILE_COND_END:
+            {
+                auto *tmp = new Token(token);
+                tmp->value->location = jumpLocations.pop_back() + 1;
+                OutputCode(tmp, JIT);
+                if (breakLocations.Count() > 0)
+                {
+                    program[breakLocations.pop_back()]->location = program.Count();
+                }
+                break;
+            }
+            case WHILE_BLOCK_BEGIN:
+            {
+                //Add initial jump to condition.
+                jumpLocations.push_back(program.Count());
+                OutputCode(token, JMP);
+            }
+            case WHILE_BLOCK_END:
+            {
+                break;
+            }
+            case SWITCH_BEGIN:
+            {
+                currentToken->switchCaseIndex = 0;
+                switches.push_back(currentToken);
+                breakableTokens.push_back(currentToken);
+                break;
+            }
+            case SWITCH_END:
+            {
+                auto *t = switches.pop_back();
+                program[t->switchIndex]->location = program.Count();
 
-            auto *dslValue = new DslValue();
-            if (currentToken->type == PREFIX_DEC || currentToken->type == POSTFIX_DEC)
-            {
-                if ( variable->modifier == TMLocalScope )
+                Token *bt = breakableTokens.pop_back();
+                while( bt->breakLocations.Count() > 0 )
                 {
-                    tmp->value->opcode = DEL;
+                    program[bt->breakLocations.pop_back()]->location = program.Count();
+                }
+                break;
+            }
+            case SWITCH_COND_BEGIN:
+                break;
+            case FUNCTION_CALL_BEGIN:
+                functionCalls.push_back(new Token(currentToken));
+                break;
+            case FUNCTION_CALL_END:
+            {
+                auto *fc = functionCalls.pop_back();
+                auto id = U8String(fc->identifier);
+                if ( fc->value->opcode == JSR )
+                {
+                    Token *funInfo = functions.Get(&id);
+                    fc->value->location = funInfo->value->location;
+                }
+
+                //Add parameter count.
+                OutputCount(fc->value->iValue, fc->value->moduleId);
+
+                if ( standardFunctions.Exists(&id) )
+                {
+                    OutputCode(fc, JBF);
                 }
                 else
                 {
-                    tmp->value->opcode = DEC;
+                    OutputCode(fc, JSR);
                 }
+                break;
             }
-            else
+            case SWITCH_COND_END:
             {
-                if ( variable->modifier == TMLocalScope )
+                auto *t = switches.pop_back();
+                t->switchIndex = program.Count();
+                OutputCode(t, JTB);
+                switches.push_back(t);
+                break;
+            }
+            case CASE_BLOCK_BEGIN:
+            {
+                auto *t = switches.pop_back();
+                program[t->switchIndex]->cases[t->switchCaseIndex]->location = program.Count();
+                switches.push_back(t);
+                break;
+            }
+            case CASE_BLOCK_END:
+            {
+                auto *t = switches.pop_back();
+                t->switchCaseIndex++;
+                switches.push_back(t);
+                break;
+            }
+            case PREFIX_DEC: case PREFIX_INC: case POSTFIX_DEC: case POSTFIX_INC:
+            {
+                Token *variable = GetVariableInfo(currentToken);
+                if ( variable == nullptr )
                 {
-                    tmp->value->opcode = INL;
+                    return nullptr;
+                }
+                auto *tmp = new Token(currentToken);
+                tmp->value = new DslValue(variable->value);
+
+                auto *dslValue = new DslValue();
+                if (currentToken->type == PREFIX_DEC || currentToken->type == POSTFIX_DEC)
+                {
+                    if ( variable->modifier == TMLocalScope )
+                    {
+                        tmp->value->opcode = DEL;
+                    }
+                    else
+                    {
+                        tmp->value->opcode = DEC;
+                    }
                 }
                 else
                 {
-                    tmp->value->opcode = INC;
+                    if ( variable->modifier == TMLocalScope )
+                    {
+                        tmp->value->opcode = INL;
+                    }
+                    else
+                    {
+                        tmp->value->opcode = INC;
+                    }
                 }
-            }
-            OutputCode(tmp, tmp->value->opcode);
-            if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC )
-            {
-                //If no more operations after dec or inc then the dec or inc is terminal for the expression.
-                if (!output.IsEmpty())
+                OutputCode(tmp, tmp->value->opcode);
+                if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC )
                 {
-                    PushValue(lastVariable);
+                    //If no more operations after dec or inc then the dec or inc is terminal for the expression.
+                    if (!output.IsEmpty())
+                    {
+                        PushValue(lastVariable);
+                    }
                 }
+                break;
             }
-            continue;
-        }
-        else if (currentToken->type == PARAMETER_VALUE )
-        {
-            OutputCode(currentToken, PSL);
-            continue;
-        }
-        else if (currentToken->type == VARIABLE_DEF )
-        {
-            CreateVariable(currentToken);
-            continue;
-        }
-        else if (currentToken->type == COLLECTION_ADDRESS )
-        {
-            auto *tmp = new Token(currentToken);
-            auto *variable = GetVariableInfo(currentToken);
-            tmp->value->operand = variable->value->operand;
-            OutputCode(tmp, tmp->value->opcode);
-            continue;
-        }
-        else if (currentToken->type == VARIABLE_ADDRESS )
-        {
-            OutputCode(currentToken, PVA);
-            continue;
-        }
-        else if (currentToken->type == VARIABLE_VALUE || currentToken->type == COLLECTION_VALUE )
-        {
-            lastVariable = currentToken;
-            if ( !output.IsEmpty() )
+            case PARAMETER_VALUE:
             {
-                TokenTypes type = output.Peek()->type;
-                //prefix and postfix operations directly increment the variable.
-                if ( type == PREFIX_INC || type == PREFIX_DEC || type == POSTFIX_INC || type == POSTFIX_DEC )
+                OutputCode(currentToken, PSL);
+                break;
+            }
+            case VARIABLE_DEF:
+            {
+                CreateVariable(currentToken);
+                break;
+            }
+            case COLLECTION_ADDRESS:
+            {
+                auto *tmp = new Token(currentToken);
+                auto *variable = GetVariableInfo(currentToken);
+                tmp->value->operand = variable->value->operand;
+                OutputCode(tmp, tmp->value->opcode);
+                break;
+            }
+            case VARIABLE_ADDRESS:
+            {
+                OutputCode(currentToken, PVA);
+                break;
+            }
+            case VARIABLE_VALUE: case COLLECTION_VALUE:
+            {
+                lastVariable = currentToken;
+                if ( !output.IsEmpty() )
                 {
-                    continue;
+                    TokenTypes type = output.Peek()->type;
+                    //prefix and postfix operations directly increment the variable.
+                    if ( type == PREFIX_INC || type == PREFIX_DEC || type == POSTFIX_INC || type == POSTFIX_DEC )
+                    {
+                        break;
+                    }
                 }
+                PushValue(currentToken);
+                break;
             }
-            PushValue(currentToken);
-            continue;
-        }
-        else if (IS_ASSIGNMENT_TOKEN(currentToken->type))
-        {
-            Token *variable = GetVariableInfo(currentToken);
-            //If token type is a compound assignment add the operation before the assignment.
-            if (currentToken->type != ASSIGNMENT)
+            case ASSIGNMENT: case ADD_ASSIGNMENT: case SUBTRACT_ASSIGNMENT: case MULTIPLY_ASSIGNMENT:
+            case DIVIDE_ASSIGNMENT: case MODULO_ASSIGNMENT:
             {
-                CreateOperation(currentToken);
+                Token *variable = GetVariableInfo(currentToken);
+                //If token type is a compound assignment add the operation before the assignment.
+                if (currentToken->type != ASSIGNMENT)
+                {
+                    CreateOperation(currentToken);
+                }
+                if (currentToken->type == ADD_ASSIGNMENT || currentToken->type == SUBTRACT_ASSIGNMENT ||
+                    currentToken->type == MULTIPLY_ASSIGNMENT || currentToken->type == DIVIDE_ASSIGNMENT ||
+                    currentToken->type == MODULO_ASSIGNMENT )
+                {
+                    break;
+                }
+                auto *tmp = new Token(currentToken);
+                tmp->value = new DslValue(variable->value);
+                if ( variable->modifier == TMLocalScope )
+                {
+                    tmp->value->opcode = SLV;
+                }
+                else
+                {
+                    tmp->value->opcode = SAV;
+                }
+                OutputCode(tmp, tmp->value->opcode);
+                break;
             }
-            if (currentToken->type == ADD_ASSIGNMENT || currentToken->type == SUBTRACT_ASSIGNMENT || currentToken->type == MULTIPLY_ASSIGNMENT ||
-                currentToken->type == DIVIDE_ASSIGNMENT || currentToken->type == MODULO_ASSIGNMENT )
+            case BREAK:
             {
-                continue;
+                Token *t = breakableTokens.pop_back();
+                t->breakLocations.push_back(program.Count());
+                breakableTokens.push_back(t);
+                OutputCode(currentToken, JMP);
+                break;
             }
-            auto *tmp = new Token(currentToken);
-            tmp->value = new DslValue(variable->value);
-            if ( variable->modifier == TMLocalScope )
+            case FUNCTION_DEF_BEGIN:
             {
-                tmp->value->opcode = SLV;
+                jumpLocations.push_back(program.Count());
+                OutputCode(currentToken, JMP);
+                Token *funInfo = functions.Get(currentToken->identifier);
+                funInfo->value->location = program.Count();
+                functions.Set(currentToken->identifier, funInfo);
+                break;
             }
-            else
+            case FUNCTION_DEF_END:
+                OutputCode(currentToken, RET);
+                program[jumpLocations.pop_back()]->location = program.Count();
+                break;
+            case IF_BLOCK_BEGIN: case IF_COND_BEGIN:
+                break;
+            case IF_COND_END:
+                ifJumpLocations.push_back(program.Count());
+                OutputCode(currentToken, JIF);
+                break;
+            case IF_BLOCK_END:
             {
-                tmp->value->opcode = SAV;
+                int64_t jmp = ifJumpLocations.pop_back();
+                //update jump location to correct location after block end
+                if ( !output.IsEmpty() && output.Peek(0)->type == ELSE_BLOCK_BEGIN )
+                {
+                    program[jmp]->location = program.Count() + 1;
+                }
+                else
+                {
+                    program[jmp]->location = program.Count();
+                }
+                break;
             }
-            OutputCode(tmp, tmp->value->opcode);
-            continue;
+            case ELSE_BLOCK_BEGIN:
+                ifJumpLocations.push_back(program.Count());
+                OutputCode(token, JMP);
+                break;
+            case ELSE_BLOCK_END:
+                program[ifJumpLocations.pop_back()]->location = program.Count();
+                break;
+            case CONTINUE:
+                continueLocations.push_back(program.Count());
+                OutputCode(token, JMP);
+                token = Advance();
+                break;
+            case FOR_INIT_BEGIN:
+                token = Expression(EXIT_FOR_INIT_END, -1);
+                break;
+            case FOR_INIT_END:
+                token = Advance();
+                break;
+            case FOR_COND_BEGIN:
+                jumpLocations.push_back(program.Count());
+                token = Expression(EXIT_FOR_COND_END, -1);
+                break;
+            case FOR_COND_END:
+                jumpLocations.push_back(program.Count());
+                OutputCode(token, JIF);
+                token = Advance();
+                break;
+            case FOR_BLOCK_BEGIN: case FOR_BLOCK_END: case PARAM_BEGIN: case PARAM_END:
+                break;
+            case FOR_UPDATE_BEGIN:
+                token = Expression(EXIT_FOR_UPDATE_END, -1);
+                break;
+            case FOR_UPDATE_END:
+            {
+                //Update conditional jump to exit
+                program[jumpLocations.pop_back()]->location = program.Count() + 1;
+                if (continueLocations.Count() > 0)
+                {
+                    program[continueLocations.pop_back()]->location = program.Count() + 1;
+                }
+                if (breakLocations.Count() > 0)
+                {
+                    program[breakLocations.pop_back()]->location = program.Count() + 1;
+                }
+                //Set jump back to conditional check
+                auto *tmp = new Token(token);
+                tmp->value->location = jumpLocations.pop_back();
+                OutputCode(tmp, JMP);
+                token = Advance();
+                break;
+            }
+            case RETURN:
+                OutputCode(token, RET);
+                break;
+            default:
+                if ( currentToken->is_value() )
+                {
+                    PushValue(currentToken);
+                    break;
+                }
+                else if ( currentToken->is_op() )
+                {
+                    //else some other operator
+                    CreateOperation(currentToken);
+                    break;
+                }
+                fatal = true;
+                printf("Token in output queue but not processed: %s\n",
+                       tokenNames[(int64_t)currentToken->type & 0xFF]);
+                break;
         }
-        else if ( currentToken->is_op() )
-        {
-            //else some other operator
-            CreateOperation(currentToken);
-            continue;
-        }
-        else if ( currentToken->type == BREAK )
-        {
-            breakLocations.push_back(program.Count());
-            OutputCode(currentToken, JMP);
-            continue;
-        }
-        fatal = true;
-        printf("Lexer missed case should have caught the syntax issue\n");
-        DisplayTokenAsText(-1, currentToken->type);
     }
 
     return token;

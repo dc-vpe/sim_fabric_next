@@ -29,6 +29,7 @@ Token::Token()
     switchIndex = 0;
     switchCaseIndex = 0;
     switchIndex = 0;
+    breakLocations.Clear();
 }
 
 Token::Token(Token *token)
@@ -57,6 +58,7 @@ Token::Token(Token *token)
     switchIndex = token->switchIndex;
     switchCaseIndex = token->switchCaseIndex;
     switchIndex = token->switchIndex;
+    breakLocations.CopyFrom(&token->breakLocations);
 }
 
 Token::Token(DslValue *dslValue)
@@ -75,6 +77,7 @@ Token::Token(DslValue *dslValue)
     switchIndex = 0;
     switchCaseIndex = 0;
     switchIndex = 0;
+    breakLocations.Clear();
 }
 
 Token::Token(TokenTypes tokenTypes)
@@ -93,6 +96,7 @@ Token::Token(TokenTypes tokenTypes)
     switchIndex = 0;
     switchCaseIndex = 0;
     switchIndex = 0;
+    breakLocations.Clear();
 }
 
 Token::Token(TokenTypes tokenTypes, U8String *id)
@@ -102,7 +106,7 @@ Token::Token(TokenTypes tokenTypes, U8String *id)
     value = new DslValue();
     identifier = new U8String(id);
     modifier = TMScriptScope;
-    location      = locationInfo;
+    location = locationInfo;
     switchStart = 0;
     switchEnd = 0;
     switchCondEnd = 0;
@@ -111,4 +115,5 @@ Token::Token(TokenTypes tokenTypes, U8String *id)
     switchIndex = 0;
     switchCaseIndex = 0;
     switchIndex = 0;
+    breakLocations.Clear();
 }
