@@ -296,6 +296,7 @@ void CPU::ReturnResult(int64_t totalParams, DslValue *returnValue)
 /// \return Pointer to the parameter.
 DslValue *CPU::GetParam(int64_t totalParams, int64_t index)
 {
+    DslValue *v = &params[(top-totalParams) + index];
     return &params[(top-totalParams) + index];
 }
 
@@ -1530,9 +1531,11 @@ bool CPU::RunInstruction(DslValue *dslValue)
             break;
         case INC:
             program[dslValue->operand]->INC();
+            params[++top].LiteCopy(program[dslValue->operand]);
             break;
         case DEC:
             program[dslValue->operand]->DEC();
+            params[++top].LiteCopy(program[dslValue->operand]);
             break;
         case NOT:
             params[top].NOT();

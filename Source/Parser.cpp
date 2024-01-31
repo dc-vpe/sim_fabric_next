@@ -192,13 +192,9 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
 /// \remark If a variable is pushed, its address is contained in operand.
 void Parser::PushValue(Token *token)
 {
-    DslValue *value;
-
     //If is a numeric value
-    if ( token->type != VARIABLE_VALUE &&
-         token->type != VARIABLE_ADDRESS &&
-         token->type != COLLECTION_VALUE &&
-         token->type != COLLECTION_ADDRESS )
+    if ( token->type != VARIABLE_VALUE && token->type != VARIABLE_ADDRESS &&
+         token->type != COLLECTION_VALUE && token->type != COLLECTION_ADDRESS )
     {
         OutputCode(token, PSI);
         return;
@@ -263,6 +259,7 @@ Token *Parser::CreateOperation(Token *token)
     return token;
 }
 
+/// \desc Entry point, parses the lexed tokens into an IL program.
 bool Parser::Parse()
 {
     if ( errors > 0 )
@@ -287,14 +284,13 @@ bool Parser::Parse()
     if ( tokens.Count() == 0 )
     {
         OutputCode(token, NOP);
-        OutputCode(token, END);
     }
     else
     {
         OutputCode(token, NOP);
         token = tokens[0];
 
-        Expression(EXIT_LOCATION, tokens.Count());
+        Expression(tokens.Count());
     }
 
     OutputCode(token, END);
@@ -350,100 +346,37 @@ void Parser::FixUpJumpsToEnd()
     }
 }
 
-/// \desc Checks if the shunting yard expression parser main loop should be exited.
-/// \param exitExpressionOn The tokens to cause the shunting yard parser to exit.
-/// \param type Current token type being parsed.
-/// \param tokenLocation location override if position is less than this location causes the shunting yard
-///                      parser to exit.
-/// \return True if the shunting yard expression parse loop should be exited, else false.
-bool Parser::ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type, int64_t tokenLocation) const
-{
-    if ( type == END_OF_SCRIPT )
-    {
-        return true;
-    }
-
-    switch( exitExpressionOn )
-    {
-        case EXIT_FUNCTION_CALL_END:
-            return type == FUNCTION_CALL_END;
-        case EXIT_SEMICOLON_COMMA:
-            return type == SEMICOLON || type == COMMA;
-        case EXIT_PARAM_END:
-            return type == PARAM_END;
-        case EXIT_CLOSE_PAREN:
-            return type == CLOSE_PAREN;
-        case EXIT_IF_COND_END:
-            return type == IF_COND_END;
-        case EXIT_IF_BLOCK_END:
-            return type == IF_BLOCK_END;
-        case EXIT_ELSE_BLOCK_END:
-            return type == ELSE_BLOCK_END;
-        case EXIT_WHILE_COND_END:
-            return type == WHILE_COND_END;
-        case EXIT_WHILE_BLOCK_END:
-            return type == WHILE_BLOCK_END;
-        case EXIT_FOR_INIT_END:
-            return type == FOR_INIT_END;
-        case EXIT_FOR_COND_END:
-            return type == FOR_COND_END;
-        case EXIT_FOR_UPDATE_END:
-            return type == FOR_UPDATE_END;
-        case EXIT_FOR_BLOCK_END:
-            return type == FOR_BLOCK_END;
-        case EXIT_SWITCH_COND_END:
-            return type == SWITCH_COND_END;
-        case EXIT_SWITCH_BLOCK_END:
-            return type == SWITCH_END;
-        case EXIT_CASE_COND_END:
-            return type == CASE_COND_END;
-        case EXIT_CASE_BLOCK_END:
-            return type == CASE_BLOCK_END;
-        case EXIT_DEFAULT_BLOCK_END:
-            return type == DEFAULT_BLOCK_END;
-        case EXIT_FUNCTION_DEF_END:
-            return type == FUNCTION_DEF_END;
-        case EXIT_LOCATION:
-            return position >= tokenLocation;
-    }
-
-    return true;
-}
-
 /// \desc Shunting yard expression parser, takes the lexed tokens from an expression and
 ///       arranges them into an output queue in the correct order to be processed into
 ///       an ordered list ready for code generation.
-/// \param exitExpressionOn Token types to look for to determine if expression parsing should exit.
 /// \param token First token in the expression.
-/// \param output Pointer to the output being filled in.
 /// \return A pointer to the output queue containing the ordered token list.
-Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output,
-                            int64_t tokenLocation)
+Token *Parser::ShuntingYard(Token *token, int64_t tokenLocation)
 {
     Stack<Token *> ops;
 
     //This loop forms the core of a shunting yard expression parser.
-    while (!ExitExpression(exitExpressionOn, token->type, tokenLocation))
+    while (position+1 < tokenLocation)
     {
         switch (token->type)
         {
             case BREAK: case SWITCH_BEGIN: case SWITCH_COND_BEGIN: case CASE_BLOCK_BEGIN: case WHILE_COND_BEGIN:
             case WHILE_BLOCK_BEGIN: case IF_COND_BEGIN: case IF_BLOCK_BEGIN: case ELSE_BLOCK_BEGIN:
             case FOR_UPDATE_BEGIN: case FOR_BLOCK_BEGIN: case FOR_INIT_BEGIN: case FOR_COND_BEGIN:
-            case PARAM_END: case PARAM_BEGIN: case FUNCTION_CALL_END: case END_OF_SCRIPT:
+            case FUNCTION_CALL_END: case END_OF_SCRIPT:
             case DEFAULT_BLOCK_BEGIN: case DEFAULT_BLOCK_END: case FUNCTION_PARAMETER:
-                output->Enqueue(token);
+                output.Enqueue(token);
                 break;
             case FUNCTION_DEF_BEGIN:
                 {
-                    output->Enqueue(token);
+                    output.Enqueue(token);
                     auto *t = functions.Get(token->identifier);
                     printf("%s", t->identifier->cStr());
                     break;
                 }
             case FUNCTION_DEF_END:
             {
-                output->Enqueue(token);
+                output.Enqueue(token);
                 break;
             }
             case WHILE_BLOCK_END: case CASE_BLOCK_END: case SWITCH_END: case FOR_COND_END: case FOR_INIT_END:
@@ -451,9 +384,9 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
             case WHILE_COND_END: case SWITCH_COND_END:
                 while( ops.top() != 0 )
                 {
-                    output->Enqueue(ops.pop_back());
+                    output.Enqueue(ops.pop_back());
                 }
-                output->Enqueue(token);
+                output.Enqueue(token);
                 break;
             case FUNCTION_CALL_BEGIN: //Function's value used in an expression.
             {
@@ -467,7 +400,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                     token->value->opcode = JSR;
                 }
                 //queue function call begin
-                output->Enqueue(token);
+                output.Enqueue(token);
                 break;
             }
             case COLLECTION_ADDRESS:
@@ -476,22 +409,29 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                            (GET_BP(token->type) < ops.peek(1)->bp() ||
                             (token->bp() == ops.peek(1)->bp() && token->is_left_assoc())))
                     {
-                        output->Enqueue(ops.pop_back());
+                        output.Enqueue(ops.pop_back());
                     }
-                    output->Enqueue(token);
+                    output.Enqueue(token);
                 }
                 break;
             case VARIABLE_DEF: case VARIABLE_VALUE: case PARAMETER_VALUE: case COLLECTION_VALUE:
             case VARIABLE_ADDRESS:  //variable address is higher priority than anything else and only
-                output->Enqueue(token);
+                output.Enqueue(token);
                 break;
+            case PARAM_BEGIN:
+            {
+                auto *tmp = new Token(token);
+                tmp->type = OPEN_PAREN;
+                ops.push_back(tmp);
+            }
             case OPEN_PAREN:
                 ops.push_back(token);
                 break;
+            case PARAM_END:
             case CLOSE_PAREN:
                 while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN)
                 {
-                    output->Enqueue(ops.pop_back());
+                    output.Enqueue(ops.pop_back());
                 }
                 if (ops.top() != 0 && ops.peek(1)->type == OPEN_PAREN)
                 {
@@ -501,13 +441,13 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
             default:
                 if (token->is_value())
                 {
-                    output->Enqueue(token);
+                    output.Enqueue(token);
                 }
                 else if (token->is_unary())
                 {
                     while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN && token->bp() < ops.peek(1)->bp())
                     {
-                        output->Enqueue(ops.pop_back());
+                        output.Enqueue(ops.pop_back());
                     }
                     ops.push_back(token);
                 }
@@ -516,7 +456,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                     while (ops.top() != 0 && ops.peek(1)->type != OPEN_PAREN && (token->bp() < ops.peek(1)->bp() ||
                                                                                  (token->bp() == ops.peek(1)->bp() && token->is_left_assoc())))
                     {
-                        output->Enqueue(ops.pop_back());
+                        output.Enqueue(ops.pop_back());
                     }
                     ops.push_back(token);
                 }
@@ -524,7 +464,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
                 {
                     while( ops.top() != 0 )
                     {
-                        output->Enqueue(ops.pop_back());
+                        output.Enqueue(ops.pop_back());
                     }
                 }
                 break;
@@ -534,7 +474,7 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
 
     while (ops.top() != 0)
     {
-        output->Enqueue(ops.pop_back());
+        output.Enqueue(ops.pop_back());
     }
 
     return token;
@@ -542,12 +482,10 @@ Token *Parser::ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Que
 
 /// \desc Parses expressions up to the point where rbp right binding power or precedence
 ///       is greater than or equal to the left terms binding power, precedence.
-Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocation)
+Token *Parser::Expression(int64_t tokenLocation)
 {
-    Queue<Token *> output;
-
     Token *token = Peek(0);
-    token = ShuntingYard(exitExpressionOn, token, &output, tokenLocation);
+    token = ShuntingYard(token, tokenLocation);
 
     if ( parserInfoLevel == 2 )
     {
@@ -671,46 +609,12 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
             }
             case PREFIX_DEC: case PREFIX_INC: case POSTFIX_DEC: case POSTFIX_INC:
             {
-                Token *variable = GetVariableInfo(currentToken);
-                if ( variable == nullptr )
-                {
-                    return nullptr;
-                }
-                auto *tmp = new Token(currentToken);
-                tmp->value = new DslValue(variable->value);
-
-                auto *dslValue = new DslValue();
-                if (currentToken->type == PREFIX_DEC || currentToken->type == POSTFIX_DEC)
-                {
-                    if ( variable->modifier == TMLocalScope )
-                    {
-                        tmp->value->opcode = DEL;
-                    }
-                    else
-                    {
-                        tmp->value->opcode = DEC;
-                    }
-                }
-                else
-                {
-                    if ( variable->modifier == TMLocalScope )
-                    {
-                        tmp->value->opcode = INL;
-                    }
-                    else
-                    {
-                        tmp->value->opcode = INC;
-                    }
-                }
+                auto *variable = GetVariableInfo(currentToken);
+                auto *tmp = new Token(variable);
+                tmp->type = currentToken->type;
+                tmp->value->type = currentToken->type;
+                tmp->value->opcode = currentToken->value->opcode;
                 OutputCode(tmp, tmp->value->opcode);
-                if (currentToken->type == PREFIX_DEC || currentToken->type == PREFIX_INC )
-                {
-                    //If no more operations after dec or inc then the dec or inc is terminal for the expression.
-                    if (!output.IsEmpty())
-                    {
-                        PushValue(lastVariable);
-                    }
-                }
                 break;
             }
             case PARAMETER_VALUE:
@@ -832,25 +736,16 @@ Token *Parser::Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocati
                 OutputCode(token, JMP);
                 token = Advance();
                 break;
-            case FOR_INIT_BEGIN:
-                token = Expression(EXIT_FOR_INIT_END, -1);
-                break;
-            case FOR_INIT_END:
-                token = Advance();
-                break;
             case FOR_COND_BEGIN:
                 jumpLocations.push_back(program.Count());
-                token = Expression(EXIT_FOR_COND_END, -1);
                 break;
             case FOR_COND_END:
                 jumpLocations.push_back(program.Count());
                 OutputCode(token, JIF);
-                token = Advance();
                 break;
             case FOR_BLOCK_BEGIN: case FOR_BLOCK_END: case PARAM_BEGIN: case PARAM_END:
-                break;
+            case FOR_INIT_BEGIN: case FOR_INIT_END:
             case FOR_UPDATE_BEGIN:
-                token = Expression(EXIT_FOR_UPDATE_END, -1);
                 break;
             case FOR_UPDATE_END:
             {

@@ -98,3 +98,5 @@ dsl break_with_for.dsl
 dsl complex_exp_with_recursive_function_call.dsl
 dsl ifelseifelse.dsl
 dsl multi_level_switch_case.dsl
+dsl test_rtl_post_inc.dsl
+dsl test_post_dec_rtl_assoc.dsl

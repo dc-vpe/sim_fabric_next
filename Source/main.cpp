@@ -7,21 +7,12 @@
 /// \desc If false development direct call test is run, else the compiler is generated.
 /// \remark Once we reach feature complete the test path will be removed. Its present
 ///         only for development.
-#define COMPILER true
 
 #include "../Includes/parser.h"
 #include "../Includes/CPU.h"
 #include "../Includes/JsonParser.h"
 #include <iostream>
 #include <unistd.h>
-
-#ifndef COMPILER
-//extern void RunAllStringTests();
-//extern void RunAllHashmapTests();
-//extern void RunAllListTests();
-extern void RunLexerTests();
-//extern void RunAllParserTests();
-#endif
 
 /// \desc array of token names arranged in ID order used as debug aid to display a token _n
 /// in error and warning messages.
@@ -164,13 +155,7 @@ void DisplayTokenAsText(int64_t index, TokenTypes type)
     printf("\n");
 }
 
-[[maybe_unused]] extern void RunAllStringTests();
-extern void RunAllHashmapTests();
-extern void RunAllListTests();
-extern void RunAllParserTests();
-
-#if COMPILER
-
+/// \desc command line arguments.
 enum CMD_ARGS
 {
       FileArg        = 0
@@ -194,6 +179,7 @@ enum CMD_ARGS
     , TraceOne       = 18
 };
 
+/// \desc parses the input string and returns the command line argument.
 CMD_ARGS GetCommand(char *arg)
 {
     size_t len = strlen(arg);
@@ -314,6 +300,7 @@ CMD_ARGS GetCommand(char *arg)
     }
 }
 
+/// \desc Displays the internal help page.
 void Help()
 {
     printf("--------------------------------------Help page--------------------------------------\n");
@@ -347,6 +334,7 @@ void Help()
     printf("-w3     Warnings are treated as errors. Default option.\n");
 }
 
+/// \desc Gets the file name from the file path name.
 void GetFileName(char *path, char *fileName)
 {
     char *e = path + strlen(path);
@@ -363,6 +351,7 @@ void GetFileName(char *path, char *fileName)
     strcpy(fileName, e);
 }
 
+/// \desc Gets the module name from the file name.
 void GetModuleName(char *fileName, char *moduleName)
 {
     strcpy(moduleName, fileName);
@@ -383,9 +372,10 @@ char *cwd()
     return buffer;
 }
 
+/// \desc Entry point for the compiler.
 int main(int argc, char *argv[])
 {
-    printf("DSL Version 0.8.0\n");
+    printf("DSL Version 0.8.5 (Alpha)\n");
     printf("Working Folder %s\n", cwd());
 
     if ( argc < 2 )
@@ -582,29 +572,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-#else
-
-int main()
-{
-    warningLevel = WarningLevel3;
-    fatal = false;
-    total_passed = 0;
-    total_run = 0;
-    total_passed = 0;
-
-    JsonParser::Test();
-
-//    RunAllStringTests();
-//    RunAllHashmapTests();
-//    RunAllListTests();
-//    RunLexerTests();
-
-//    RunAllParserTests();
-
-//    printf("Total Tests Run: %d, Total Passed: %d, Total Failed: %d\n", total_run, total_passed, total_failed);
-
-    return 0;
-}
-
-#endif

@@ -3894,22 +3894,78 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             //Prefix inc and dec act like post fix for the variable they increment or decrement.
             //The key difference is where the increment or decrement occur and the parser expression
             //evaluator arranges their order so the inc and dev operation occurs in the correct order.
-        case PREFIX_INC: case PREFIX_DEC:
+        case PREFIX_INC:
         {
-            if ( !AddVariableValue() )
+            GetNextTokenType();
+            auto *variable = variables.Get(&fullVarName);
+            auto *t = new Token(variable);
+            if ( t->modifier == TMLocalScope )
             {
-                return ERROR_TOKEN;
+                t->value->opcode = INL;
             }
-
-            //Skip variable as its already been assigned
-            SkipNextTokenType();
+            else
+            {
+                t->value->opcode = INC;
+            }
+            t->type = PREFIX_INC;
+            tokens.push_back(t);
+            return type;
         }
-        case POSTFIX_INC: case POSTFIX_DEC:
+        case PREFIX_DEC:
+        {
+            GetNextTokenType();
+            auto *variable = variables.Get(&fullVarName);
+            auto *t = new Token(variable);
+            if ( t->modifier == TMLocalScope )
+            {
+                t->value->opcode = DEL;
+            }
+            else
+            {
+                t->value->opcode = DEC;
+            }
+            t->type = PREFIX_DEC;
+            tokens.push_back(t);
+            return type;
+        }
+        case POSTFIX_INC:
         {
             //postfix needs variable to increment or decrement.
             Token *prevToken = tokens[tokens.Count()-1];
-            auto *t = new Token(prevToken);
-            t->type = type;
+
+            auto *variable = variables.Get(prevToken->identifier);
+            auto *t = new Token(variable);
+            t->type = POSTFIX_INC;
+            t->value->type = POSTFIX_INC;
+            if ( t->modifier == TMLocalScope )
+            {
+                t->value->opcode = INL;
+            }
+            else
+            {
+                t->value->opcode = INC;
+            }
+            t->type = PREFIX_INC;
+            tokens.push_back(t);
+            return type;
+        }
+        case POSTFIX_DEC:
+        {
+            //postfix needs variable to increment or decrement.
+            Token *prevToken = tokens[tokens.Count()-1];
+            auto *variable = variables.Get(prevToken->identifier);
+            auto *t = new Token(variable);
+            t->type = POSTFIX_DEC;
+            t->value->type = POSTFIX_DEC;
+            if ( t->modifier == TMLocalScope )
+            {
+                t->value->opcode = DEL;
+            }
+            else
+            {
+                t->value->opcode = DEC;
+            }
+            t->type = PREFIX_DEC;
             tokens.push_back(t);
             return type;
         }

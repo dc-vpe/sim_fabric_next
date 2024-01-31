@@ -74,6 +74,10 @@ private:
     /// \desc Function call stack used while processing function calls in expression.
     List<Token *> functionCalls;
 
+    /// \desc Shunting yard function outputs the tokens in this queue in the
+    ///       correct order to be written to the program list.
+    Queue<Token *> output;
+
     ///\desc The current parsing position within the lexed list of tokens.
     int64_t position;
 
@@ -90,9 +94,9 @@ private:
     static Token *CreateOperation(Token *token);
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
-    Token *Expression(ExitExpressionOn exitExpressionOn, int64_t tokenLocation = -1);
-    Token *ShuntingYard(ExitExpressionOn exitExpressionOn, Token *token, Queue<Token *> *output, int64_t tokenLocation);
-    [[nodiscard]] bool ExitExpression(ExitExpressionOn exitExpressionOn, TokenTypes type, int64_t tokenLocation) const;
+    Token *Expression(int64_t tokenLocation = -1);
+    static void ToOpenParen(TokenTypes type, Stack<Token *> *ops, Queue<Token *> *output);
+    Token *ShuntingYard(Token *token, int64_t tokenLocation);
 };
 
 #endif
