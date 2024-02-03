@@ -1309,7 +1309,7 @@ void DslValue::printItem(bool showEscapes)
             printf("\n");
             return;
         case INTEGER_VALUE:
-            printf("%lld", iValue);
+            printf("%lld", (long long int)iValue);
             break;
         case DOUBLE_VALUE:
             printf("%f", dValue);

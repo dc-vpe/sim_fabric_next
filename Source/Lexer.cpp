@@ -1063,6 +1063,64 @@ bool Lexer::DefineFunction(Token *token)
         return false;
     }
 
+    if ( m_id >= 1 )
+    {
+        // Check for user and system event functions.
+        if ( !strncmp(funBegin->value->variableScriptName.cStr(), "On", 2) )
+        {
+            definingEvent = true;
+            currentEventFunction.CopyFromCString(funBegin->identifier->cStr());
+
+            if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnError", 7))
+            {
+                modules[m_id - 1]->onError.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnKeyUp", 7))
+            {
+                modules[m_id - 1]->onKeyUp.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnKeyDown", 9))
+            {
+                modules[m_id - 1]->onKeyDown.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnLeftDrag", 9))
+            {
+                modules[m_id - 1]->onLeftDrag.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnLeftUp", 8))
+            {
+                modules[m_id - 1]->onLeftUp.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnLeftDown", 10))
+            {
+                modules[m_id - 1]->onLeftDown.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnRightDrag", 11))
+            {
+                modules[m_id - 1]->onRightDrag.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnRightUp", 9))
+            {
+                modules[m_id - 1]->onRightUp.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnRightDown", 11))
+            {
+                modules[m_id - 1]->onRightDown.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnTick", 6))
+            {
+                modules[m_id - 1]->onTick.CopyFromCString(funBegin->identifier->cStr());
+            }
+            else
+            {
+                modules[m_id - 1]->onTick.CopyFromCString(funBegin->identifier->cStr());
+                int64_t index = modules[m_id - 1]->userEvents.Count();
+                modules[m_id - 1]->userEvents.push_back(new U8String());
+                modules[m_id - 1]->userEvents[index]->CopyFrom(funBegin->identifier);
+            }
+        }
+    }
+
     if ( !DefineFunctionParameters())
     {
         SkipToEndOfBlock(start);
@@ -1103,8 +1161,11 @@ bool Lexer::DefineFunction(Token *token)
     {
         SkipToEndOfBlock(start);
         definingFunction = false;
+        definingEvent = false;
         return false;
     }
+
+    definingEvent = false;
 
     auto *funEnd = new Token(token);
     funEnd->type = FUNCTION_DEF_END;
@@ -2177,6 +2238,7 @@ bool Lexer::DefineStatements(LocationInfo end, bool noStatements)
         {
             continue;
         }
+
         type = GenerateTokens(type);
         if ( type == INVALID_TOKEN )
         {
@@ -3612,8 +3674,12 @@ void Lexer::Initialize()
 // \return True if no errors or warnings occur, else false.
 int64_t Lexer::AddModule(const char *moduleName, const char *file, const char *script)
 {
-    int64_t id = modules.Count() + 1;
-    modules.push_back(new Module(moduleName, file, script));
+    int64_t id  = modules.Count() + 1;
+    auto *mod = new Module();
+    mod->name.CopyFromCString(moduleName);
+    mod->file.CopyFromCString(file);
+    mod->script.CopyFromCString(script);
+    modules.push_back(mod);
 
     return id;
 }
@@ -3631,13 +3697,13 @@ bool Lexer::Lex()
         modifier = TMScriptScope;
         varSpecified = false;
         constSpecified = false;
-        parseBuffer.CopyFrom(modules[ii]->Script());
+        parseBuffer.CopyFrom(&modules[ii]->script);
         locationInfo.Reset();
         errors = 0;
         warnings = 0;
 
         module.Clear();
-        module.push_back(modules[ii]->Name());
+        module.CopyFromCString(modules[ii]->name.cStr());
         TokenTypes type = PeekNextTokenType();
         while (type != END_OF_SCRIPT)
         {
@@ -3673,7 +3739,7 @@ bool Lexer::Lex()
                         {
                             PrintIssue(2231, true, false,
                                        "Function %s already defined in module %s",
-                                       name->cStr(), modules[ii]->Name());
+                                       name->cStr(), modules[ii]->name.cStr());
                         }
                         else
                         {
@@ -3724,7 +3790,7 @@ bool Lexer::Lex(int64_t id)
         return false;
     }
 
-    parseBuffer.CopyFrom(modules[id-1]->Script());
+    parseBuffer.CopyFromCString(modules[id-1]->script.cStr());
 
     locationInfo.Reset();
     errors = 0;
@@ -3732,8 +3798,8 @@ bool Lexer::Lex(int64_t id)
 
     finished = false;
 
-    module.Clear();
-    module.push_back(modules[id-1]->Name());
+    m_id = id;
+    module.CopyFromCString(modules[id-1]->name.cStr());
 
     while(!finished)
     {
@@ -3896,7 +3962,14 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             //evaluator arranges their order so the inc and dev operation occurs in the correct order.
         case PREFIX_INC:
         {
+            TokenTypes p = prev;
+            TokenTypes l = last;
+            LocationInfo save = locationInfo;
             GetNextTokenType();
+            locationInfo = save;
+            prev = p;
+            last = l;
+
             auto *variable = variables.Get(&fullVarName);
             auto *t = new Token(variable);
             if ( t->modifier == TMLocalScope )
@@ -3909,6 +3982,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             }
             t->type = PREFIX_INC;
             tokens.push_back(t);
+
             return type;
         }
         case PREFIX_DEC:
@@ -3945,7 +4019,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             {
                 t->value->opcode = INC;
             }
-            t->type = PREFIX_INC;
+            t->type = POSTFIX_INC;
             tokens.push_back(t);
             return type;
         }
@@ -3965,7 +4039,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             {
                 t->value->opcode = DEC;
             }
-            t->type = PREFIX_DEC;
+            t->type = POSTFIX_DEC;
             tokens.push_back(t);
             return type;
         }
@@ -4091,8 +4165,16 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
                            "The return statement requires a value to return");
                 return ERROR_TOKEN;
             }
+            if ( currentFunction.IsEqual(&currentEventFunction))
+            {
+                tokens.push_back(new Token(EVENT_RETURN));
+            }
+            else
+            {
+                tokens.push_back(new Token(RETURN));
+            }
+            return type;
         case CONTINUE: case BREAK:
-            tokens.push_back(new Token(type));
             return type;
         case BOOL_VALUE: case INTEGER_VALUE: case DOUBLE_VALUE: case CHAR_VALUE: case STRING_VALUE:
         {
@@ -4163,6 +4245,7 @@ Lexer::Lexer()
 
     //setup tracking items.
     definingFunction = false;
+    definingEvent = false;
     definingFunctionsParameters = false;
     stackVariables              = 0;
     finished                    = false;
@@ -4175,6 +4258,7 @@ Lexer::Lexer()
     definingAndAssigningVariable = false;
     prev = INVALID_TOKEN;
     last = INVALID_TOKEN;
+    m_id = -1;
 
     locationInfo.Reset();
 

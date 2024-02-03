@@ -100,3 +100,5 @@ dsl ifelseifelse.dsl
 dsl multi_level_switch_case.dsl
 dsl test_rtl_post_inc.dsl
 dsl test_post_dec_rtl_assoc.dsl
+dsl test_on_error_with_0_return.dsl
+dsl test_on_tick.dsl

@@ -11,6 +11,24 @@
 #include "Token.h"
 #include "Module.h"
 
+/// \desc IDs for the handlers handled by events.
+enum SystemErrorHandlers
+{
+    ON_NONE = 0,
+    ON_ERROR = 1,
+    ON_KEY_DOWN = 2,
+    ON_KEY_UP = 3,
+    ON_LEFT_DRAG = 4,
+    ON_LEFT_UP = 5,
+    ON_LEFT_DOWN = 6,
+    ON_RIGHT_DRAG = 7,
+    ON_RIGHT_UP = 8,
+    ON_RIGHT_DOWN = 9,
+    ON_TICK = 10,
+    ON_USER = 11
+};
+
+
 /// \desc List of tokens created by the lexers. This is added to
 ///       by each lexer. The resultant list of tokens contains
 ///       all of the information the parser requires to produce

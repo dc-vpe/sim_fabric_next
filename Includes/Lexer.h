@@ -82,7 +82,11 @@ private:
 
     bool definingFunction;       //True if a function is being defined, else false.
 
+    bool definingEvent;         //True if an event function is being defined, else false.
+
     U8String currentFunction;   //Current function being lexed.
+
+    U8String currentEventFunction; //If definingEvent is true this field contains the name of the event being lexed.
 
     /// \desc True if a functions parameter list is being defined.
     bool definingFunctionsParameters;
@@ -130,6 +134,9 @@ public:
 private:
     /// \desc Name of current module being lexed.
     U8String module;
+
+    /// \desc The id of the module being defined.
+    int64_t m_id;
 
     /// \desc true if the entire _s has been processed.
     bool finished;

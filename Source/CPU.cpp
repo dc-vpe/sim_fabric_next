@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cctype>
 #include <dirent.h>
+#include <time.h>
 
 #ifdef __linux__
 #include <cerrno>
@@ -73,7 +74,8 @@ const char *OpCodeNames[] =
         "DIA",    //Divide Assign
         "MOA",    //Modulo Assign
         "DCS",    //Save non-static result in a collection during definition
-        "EFI"     //Event function information
+        "EFI",    //Event function information
+        "RFE"     //Return from event.
 };
 
 int64_t  CPU::errorCode;
@@ -112,8 +114,60 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case EXP: case MUL: case DIV: case SUB: case MOD: case ADD:
         case TEQ:  case TNE: case TGR:  case TGE: case TLS:
         case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA:
+        case RFE:
+            putchar('\t');
+            break;
         case EFI:
             putchar('\t');
+            switch((SystemErrorHandlers)dslValue->operand)
+            {
+                case ON_NONE:
+                    printf("none");
+                    break;
+                case ON_ERROR:
+                    printf("OnError() = ");
+                    break;
+                case ON_KEY_DOWN:
+                    printf("OnKeyDown() = ");
+                    break;
+                case ON_KEY_UP:
+                    printf("OnKeyUp() = ");
+                    break;
+                case ON_LEFT_DRAG:
+                    printf("OnLeftDrag() = ");
+                    break;
+                case ON_LEFT_UP:
+                    printf("OnLeftUp() = ");
+                    break;
+                case ON_LEFT_DOWN:
+                    printf("OnLeftDown() = ");
+                    break;
+                case ON_RIGHT_DRAG:
+                    printf("OnRightDrag() = ");
+                    break;
+                case ON_RIGHT_UP:
+                    printf("OnRightUp() = ");
+                    break;
+                case ON_RIGHT_DOWN:
+                    printf("OnRightDown() = ");
+                    break;
+                case ON_TICK:
+                    printf("OnTick() = ");
+                    break;
+                case ON_USER:
+                    printf("%s() = ", dslValue->variableScriptName.cStr());
+                    break;
+            }
+            if ( dslValue->moduleId > 0 )
+            {
+                printf("Module = %lld, %s() = %4.4lld",
+                       (long long int)dslValue->moduleId, dslValue->variableScriptName.cStr(),
+                       (long long int)dslValue->location);
+            }
+            else
+            {
+                printf("none");
+            }
             break;
         case PVA:
             printf("\t&%s", dslValue->variableName.cStr());
@@ -133,7 +187,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             printf("\t%s\t;param[BP+%ld]", dslValue->variableName.cStr(), (long)dslValue->operand);
             break;
         case JTB:
-            printf("\tend:%4.4lld, ", dslValue->location);
+            printf("\tend:%4.4lld, ", (long long int)dslValue->location);
             for (int64_t ii = 0; ii < dslValue->cases.Count(); ++ii)
             {
                 DslValue *caseValue = dslValue->cases[ii];
@@ -146,7 +200,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
                     printf("case ");
                     caseValue->Print(true);
                 }
-                printf(":%4.4lld", caseValue->location);
+                printf(":%4.4lld", (long long int)caseValue->location);
                 if ( ii + 1 < dslValue->cases.Count() )
                 {
                     printf(", ");
@@ -1349,17 +1403,11 @@ void CPU::JumpToOnErrorHandler()
 
     DslValue *instruction = program[PC];
 
-    for(int64_t ii=0; ii<eventHandlers.Count(); ++ii)
-    {
-        if ( eventHandlers[ii].moduleId == instruction->moduleId )
-        {
-            if ( eventHandlers[ii].sValue.IsEqual("OnError") )
-            {
-                handlerLocation = eventHandlers[ii].location;
-                break;
-            }
-        }
-    }
+    int64_t base = program[0]->location;
+
+    DslValue *onError = program[base + (10 * (instruction->moduleId-1))];
+
+    handlerLocation = onError->location;
 
     if ( handlerLocation == 0 )
     {
@@ -1373,7 +1421,7 @@ void CPU::JumpToOnErrorHandler()
     BP = top - totalParams;
     PC = handlerLocation;
 
-    while(PC < program.Count() )
+    while(PC < program[0]->location )
     {
         DslValue *dslValue = program[PC++];
         //If return from on error handler.
@@ -1406,21 +1454,60 @@ void CPU::JumpToOnErrorHandler()
             }
         }
 
-        if ( !RunInstruction(program[PC++]) )
+        if ( !RunInstruction(dslValue) )
         {
             break;
         }
     }
 }
 
+/// \desc calls the on error handler if one exists.
+void CPU::JumpToOnTick()
+{
+    if ( onTickEvent == nullptr )
+    {
+        return;
+    }
+
+    if ( clock() < nextTick )
+    {
+        return;
+    }
+
+    nextTick = clock() + TICKS_PER_SECOND;
+
+    List<DslValue> pSave;  //function call parameters stack
+    int64_t pcReturn = PC;
+    int64_t sBP = BP;
+    PC = onTickEvent->location;
+    int64_t stop = top;
+    pSave.CopyFrom(&params);
+
+    DslValue *instruction = program[PC++];
+    while( instruction->opcode != RFE )
+    {
+        if (!RunInstruction(instruction))
+        {
+            break;
+        }
+        instruction = program[PC++];
+    }
+    PC = pcReturn;
+    BP = sBP;
+    top = stop;
+    params.CopyFrom(&pSave);
+}
+
 bool CPU::RunInstruction(DslValue *dslValue)
 {
+   SetTickEvent(dslValue);
+
     switch( dslValue->opcode )
     {
         case END:
             PC = program.Count();
-            break;
-        case EFI: case DEF: case NOP: case PSP:
+            return false;
+        case EFI: case DEF: case NOP: case PSP: case RFE:
             break;
         case SLV:
             params[BP+params[top - 1].operand].SAV(&params[top]);
@@ -1531,11 +1618,11 @@ bool CPU::RunInstruction(DslValue *dslValue)
             break;
         case INC:
             program[dslValue->operand]->INC();
-            params[++top].LiteCopy(program[dslValue->operand]);
+            //params[++top].LiteCopy(program[dslValue->operand]);
             break;
         case DEC:
             program[dslValue->operand]->DEC();
-            params[++top].LiteCopy(program[dslValue->operand]);
+            //params[++top].LiteCopy(program[dslValue->operand]);
             break;
         case NOT:
             params[top].NOT();
@@ -1593,14 +1680,17 @@ bool CPU::RunInstruction(DslValue *dslValue)
             break;
     }
 
-    return true;
+   return true;
 }
 
 void CPU::RunNoTrace()
 {
     bool errorMode = false;
+    bool onTickCalled = false;
 
-    while(PC < program.Count() )
+    int64_t programEnd = program[0]->location;
+
+    while(PC < programEnd )
     {
         //If an error has been raised, switch to error mode which only processes the
         //on error callback if one exists, if not the error is simply sent to the
@@ -1613,6 +1703,9 @@ void CPU::RunNoTrace()
             errorMode = false;
             continue;
         }
+
+        JumpToOnTick();
+
         if( !RunInstruction(program[PC++]) )
         {
             break;
@@ -1625,9 +1718,12 @@ void CPU::RunTrace()
     DslValue left;
     DslValue right;
     bool errorMode = false;
+    bool onTickCalled = false;
+
+    int64_t programEnd = program[0]->location;
 
     putchar('\n');
-    while(PC < program.Count() )
+    while(PC < programEnd )
     {
         DisplayASMCodeLine(PC, false);
 
@@ -1747,7 +1843,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             left = &params[BP+instruction->operand];
             left->operand = instruction->operand;
             break;
-        case JMP: case JSR: case JTB: case NOP: case DEF: case END: case PSP: case EFI:
+        case JMP: case JSR: case JTB: case NOP: case DEF: case END: case PSP: case EFI: case RFE:
         case RET:
             left = instruction;
             operands = 1;
@@ -1755,6 +1851,20 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
     }
 
     return operands;
+}
+
+void CPU::SetTickEvent(DslValue *dslValue)
+{
+    if ( lastModuleId == dslValue->moduleId )
+    {
+        return;
+    }
+    else
+    {
+        lastModuleId = dslValue->moduleId;
+        eventBase = program[0]->location + (10 * (lastModuleId-1));
+        onTickEvent = program[eventBase + (SystemErrorHandlers ::ON_TICK-1)];
+    }
 }
 
 CPU::CPU()
@@ -1766,6 +1876,10 @@ CPU::CPU()
     A = new DslValue();
     params.Clear();
     errorCode = 0;
+    nextTick = clock() + TICKS_PER_SECOND;
+    lastModuleId = program[0]->moduleId;
+    eventBase = program[0]->location + (10 * (lastModuleId-1));
+    onTickEvent = program[eventBase + (SystemErrorHandlers ::ON_TICK-1)];
 }
 
 #pragma clang diagnostic pop

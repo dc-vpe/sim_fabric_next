@@ -166,7 +166,7 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             }
             break;
         case JTB:
-        case NOP: case RET: case JMP: case JIF: case JIT: case END: case EFI:
+        case NOP: case RET: case JMP: case JIF: case JIT: case END: case RFE:
         case EXP: case NEG: case NOT: case MUL: case DIV: case MOD: case ADA: case SUA:
         case MUA: case DIA: case MOA: case ADD: case SUB: case SVL: case SVR: case TLS:
         case TLE: case TGR: case TGE: case TEQ: case TNE: case BND: case XOR: case BOR:
@@ -176,6 +176,23 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
         case PSP:
             value = new DslValue(token->value);
             value->opcode = opcode;
+            if ( !program.push_back(value) )
+            {
+                return nullptr;
+            }
+            break;
+        case EFI:
+            value = new DslValue(EFI);
+            value->operand = token->value->operand; //1 though 9 are system types 10 + are user types.
+            value->moduleId = token->value->moduleId;
+            value->location = 0;
+            if ( token->value->moduleId > 0 )
+            {
+                funInfo = functions.Get(token->identifier);
+                value->variableName.CopyFrom(&funInfo->value->variableName);
+                value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
+                value->location = funInfo->value->location;
+            }
             if ( !program.push_back(value) )
             {
                 return nullptr;
@@ -259,6 +276,25 @@ Token *Parser::CreateOperation(Token *token)
     return token;
 }
 
+void Parser::SetEventFunctionInfo(int64_t modId, Token *token, U8String *handlerFunction, SystemErrorHandlers sysErrHandler)
+{
+    auto *ef = new Token(new DslValue(EFI));
+
+    ef->value->operand = (int64_t)sysErrHandler;
+
+    if (handlerFunction->Count() > 0)
+    {
+        ef->value->moduleId = modId;
+        ef->identifier->CopyFrom(handlerFunction);
+    }
+    else
+    {
+        ef->value->moduleId = 0;
+    }
+
+    OutputCode(ef, EFI);
+}
+
 /// \desc Entry point, parses the lexed tokens into an IL program.
 bool Parser::Parse()
 {
@@ -290,21 +326,60 @@ bool Parser::Parse()
         OutputCode(token, NOP);
         token = tokens[0];
 
-        Expression(tokens.Count());
     }
 
+    Expression(tokens.Count());
+
     OutputCode(token, END);
+    program[0]->location = program.Count(); //end of program instructions.
 
     FixUpFunctionCalls();
     FixUpJumpsToEnd();
 
-    //Add in default event handlers
-    //EFI
+    auto *ef = new Token(new DslValue(EFI));
+
     for(int ii=0; ii<modules.Count(); ++ii)
     {
-        token = new Token();
-        token->value->moduleId = ii+1;
-        OutputCode(token, EFI);
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onError,
+                             SystemErrorHandlers::ON_ERROR);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onKeyDown,
+                             SystemErrorHandlers::ON_KEY_DOWN);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onKeyUp,
+                             SystemErrorHandlers::ON_KEY_UP);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onLeftDrag,
+                             SystemErrorHandlers::ON_LEFT_DRAG);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onLeftUp,
+                             SystemErrorHandlers::ON_LEFT_UP);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onLeftDown,
+                             SystemErrorHandlers::ON_LEFT_DOWN);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onRightDrag,
+                             SystemErrorHandlers::ON_RIGHT_DRAG);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onRightUp,
+                             SystemErrorHandlers::ON_RIGHT_UP);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onRightDown,
+                             SystemErrorHandlers::ON_RIGHT_DOWN);
+
+        SetEventFunctionInfo(ii+1, token, &modules[ii]->onTick,
+                             SystemErrorHandlers::ON_TICK);
+    }
+
+    program[0]->operand = program.Count(); //user events
+
+    for(int ii=0; ii<modules.Count(); ++ii)
+    {
+        for(int tt=0; tt<modules[ii]->userEvents.Count(); ++tt)
+        {
+            SetEventFunctionInfo(ii+1, token, modules[ii]->userEvents[tt],
+                                 SystemErrorHandlers::ON_USER);
+        }
     }
 
     bool result = true;
@@ -360,6 +435,9 @@ Token *Parser::ShuntingYard(Token *token, int64_t tokenLocation)
     {
         switch (token->type)
         {
+            case RETURN: case EVENT_RETURN:
+                ops.push_back(token);
+                break;
             case BREAK: case SWITCH_BEGIN: case SWITCH_COND_BEGIN: case CASE_BLOCK_BEGIN: case WHILE_COND_BEGIN:
             case WHILE_BLOCK_BEGIN: case IF_COND_BEGIN: case IF_BLOCK_BEGIN: case ELSE_BLOCK_BEGIN:
             case FOR_UPDATE_BEGIN: case FOR_BLOCK_BEGIN: case FOR_INIT_BEGIN: case FOR_COND_BEGIN:
@@ -766,6 +844,9 @@ Token *Parser::Expression(int64_t tokenLocation)
                 token = Advance();
                 break;
             }
+            case EVENT_RETURN:
+                OutputCode(token, RFE);
+                break;
             case RETURN:
                 OutputCode(token, RET);
                 break;

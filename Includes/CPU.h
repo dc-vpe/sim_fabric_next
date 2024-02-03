@@ -12,6 +12,9 @@
 #include "../Includes/Stack.h"
 #include "../Includes/List.h"
 
+/// \desc TICKS are every 1/10th of a second.
+#define TICKS_PER_SECOND 100
+
 class CPU
 {
 public:
@@ -58,6 +61,9 @@ public:
     /// \desc Executes the single instruction in dsl value.
     /// \param dslValue Instruction to be executed.
     bool RunInstruction(DslValue *dslValue);
+
+    /// \desc Called when its time to call the on tick handler.
+    void JumpToOnTick();
 
     /// \desc Runs and traces the execution of the compiled program.
     void RunTrace();
@@ -113,6 +119,10 @@ private:
     List<DslValue> params;  //function call parameters stack
     int64_t        top;   //top of params stack
     DslValue       *A;  //Temporary A register storage.
+    long           nextTick;
+    int64_t        lastModuleId;
+    DslValue       *onTickEvent;
+    int64_t        eventBase; //start location where the EFI event information begins.
 
     static int64_t  errorCode;
     static U8String szErrorMsg;
@@ -125,6 +135,7 @@ private:
     static int64_t Find(U8String *search, U8String *expression, int64_t start);
     static void Sub(U8String *search, U8String *result, int64_t start, int64_t length);
     static int64_t ExpressionLength(U8String *expression);
+    void SetTickEvent(DslValue *dslValue);
 
 
 //Standard library function.
