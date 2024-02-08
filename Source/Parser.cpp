@@ -5,19 +5,6 @@
 
 extern void DisplayTokenAsText(int64_t index, TokenTypes type);
 
-/// \desc Advances the tok position and returns the token at the new position.
-Token *Parser::Advance(int64_t offset)
-{
-    int64_t pos = position + offset;
-    if ( !IsPositionInRange(pos) )
-    {
-        return &end;
-    }
-    position = pos;
-
-    return tokens[position];
-}
-
 /// \desc Peeks ahead the number of Tokens in the lexed token list.
 Token *Parser::Peek(int64_t offset)
 {
@@ -431,7 +418,7 @@ Token *Parser::ShuntingYard(Token *token, int64_t tokenLocation)
     Stack<Token *> ops;
 
     //This loop forms the core of a shunting yard expression parser.
-    while (position+1 < tokenLocation)
+    while (position < tokenLocation)
     {
         switch (token->type)
         {
@@ -457,8 +444,9 @@ Token *Parser::ShuntingYard(Token *token, int64_t tokenLocation)
                 output.Enqueue(token);
                 break;
             }
+            case FOR_UPDATE_END:
             case WHILE_BLOCK_END: case CASE_BLOCK_END: case SWITCH_END: case FOR_COND_END: case FOR_INIT_END:
-            case FOR_UPDATE_END: case FOR_BLOCK_END: case IF_BLOCK_END: case IF_COND_END: case ELSE_BLOCK_END:
+            case FOR_BLOCK_END: case IF_BLOCK_END: case IF_COND_END: case ELSE_BLOCK_END:
             case WHILE_COND_END: case SWITCH_COND_END:
                 while( ops.top() != 0 )
                 {
@@ -547,7 +535,11 @@ Token *Parser::ShuntingYard(Token *token, int64_t tokenLocation)
                 }
                 break;
         }
-        token = Advance();
+        position++;
+        if ( position < tokens.Count() )
+        {
+            token = tokens[position];
+        }
     }
 
     while (ops.top() != 0)
@@ -812,7 +804,6 @@ Token *Parser::Expression(int64_t tokenLocation)
             case CONTINUE:
                 continueLocations.push_back(program.Count());
                 OutputCode(token, JMP);
-                token = Advance();
                 break;
             case FOR_COND_BEGIN:
                 jumpLocations.push_back(program.Count());
@@ -841,7 +832,6 @@ Token *Parser::Expression(int64_t tokenLocation)
                 auto *tmp = new Token(token);
                 tmp->value->location = jumpLocations.pop_back();
                 OutputCode(tmp, JMP);
-                token = Advance();
                 break;
             }
             case EVENT_RETURN:

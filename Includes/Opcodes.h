@@ -63,7 +63,8 @@ enum OPCODES
     MOA,    //Modulo Assign
     DCS,    //Save non-static result in a collection during definition
     EFI,    //Event function information
-    RFE     //Return from event.
+    RFE,    //Return from event.
+    CID,    //Change module id.
 };
 
 #endif //DSL_CPP_OPCODES_H

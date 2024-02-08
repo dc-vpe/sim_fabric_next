@@ -98,6 +98,9 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
     printf("%4.4ld\t%s", (long)addr, OpCodeNames[dslValue->opcode]);
     switch(dslValue->opcode)
     {
+        case CID:
+            printf("\t%lld", dslValue->moduleId);
+            break;
         case DEF:
         {
             printf("\t%s\t;var %s", dslValue->variableName.cStr(), dslValue->variableName.cStr());
@@ -1507,6 +1510,8 @@ bool CPU::RunInstruction(DslValue *dslValue)
         case END:
             PC = program.Count();
             return false;
+        case CID:
+            break;
         case EFI: case DEF: case NOP: case PSP: case RFE:
             break;
         case SLV:
@@ -1775,6 +1780,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             right = &params[top];
             operands = 2;
             break;
+        case CID:
         case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP: case MUL:
         case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR: case SVL:
         case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE: case AND:

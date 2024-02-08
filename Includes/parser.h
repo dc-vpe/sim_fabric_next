@@ -89,7 +89,6 @@ private:
 
     static void SetEventFunctionInfo(int64_t modId, Token *token, U8String *handlerFunction,
                               SystemErrorHandlers sysErrHandler);
-    Token *Advance(int64_t offset = 1);
     Token *Peek(int64_t offset = 1);
     static void PushValue(Token *token);
     static void CreateVariable(Token *token);
@@ -97,7 +96,6 @@ private:
     static void FixUpJumpsToEnd();
     static void FixUpFunctionCalls();
     Token *Expression(int64_t tokenLocation = -1);
-    static void ToOpenParen(TokenTypes type, Stack<Token *> *ops, Queue<Token *> *output);
     Token *ShuntingYard(Token *token, int64_t tokenLocation);
 };
 

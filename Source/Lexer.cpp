@@ -1578,7 +1578,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
 /// \remark If the expression can't be evaluated at lex time a default
 ///         value is set in the dslValue. This works because the code
 ///         will replace this value when it is run.
-bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index)
+bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index, bool ignoreErrors)
 {
     LocationInfo end;
     if ( !GetExpressionEnd(false, end) )
@@ -1615,7 +1615,7 @@ bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, 
         return true;
     }
     isStaticExpression = true;
-    return ProcessStaticExpression(dslValue, end, false, true);
+    return ProcessStaticExpression(dslValue, end, ignoreErrors, true);
 }
 
 /// \desc Initializes a single variable with the following expression when the variable is
@@ -1630,7 +1630,7 @@ bool Lexer::DefineSingleVariableAssignment(TokenTypes type, Token *token)
     definingAndAssigningVariable = true;
     bool isStaticExpression = false;
 
-    if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, -1) )
+    if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, -1, false) )
     {
         definingAndAssigningVariable = false;
         return false;
@@ -1911,7 +1911,7 @@ bool Lexer::DefineCollection(Token *token)
             }
         }
 
-        if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, keyIndex) )
+        if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, keyIndex, true) )
         {
             isCollectionElement = false;
             return false;
@@ -2389,9 +2389,10 @@ bool Lexer::DefineSwitch()
             {
                 if ( dslValues[kk]->IsEqual(&caseValue))
                 {
+                    U8String buffer;
                     PrintIssue(2156, true, false,
                                "Case value %s has already used in this switch statement",
-                               caseValue.GetAsString());
+                               caseValue.GetValueAsString(&buffer, false, false));
                     SkipToEndOfBlock(start);
                     return false;
                 }
@@ -2622,18 +2623,7 @@ bool Lexer::AddVariableValue()
     {
         token->value->opcode = PSV;
     }
-    if ( token->value->type == COLLECTION )
-    {
-        if ( PeekNextTokenType() != OPEN_BRACE && !definingAndAssigningVariable)
-        {
-            if (IS_ASSIGNMENT_TOKEN(PeekNextTokenType()))
-            {
-                PrintIssue(2174, true, false,
-                           "Collections can't be reassigned once created.");
-                return false;
-            }
-        }
-    }
+
     //If accessing a field in a collection.
     if ( PeekNextTokenType() == OPEN_BRACE )
     {
@@ -3800,6 +3790,7 @@ bool Lexer::Lex(int64_t id)
 
     m_id = id;
     module.CopyFromCString(modules[id-1]->name.cStr());
+
 
     while(!finished)
     {

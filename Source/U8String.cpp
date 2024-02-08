@@ -316,30 +316,13 @@ bool U8String::printf(char *format, ...)
     va_list result_args;
     va_copy(result_args, length_args);
     const auto length = vsnprintf(nullptr, 0U, format, length_args);
-    ascii->Resize(length+1);
-    vsprintf((char *)ascii->Array(), format, result_args);
+    char *tmp = (char *)calloc(length+1, sizeof(char));
+    vsprintf((char *)tmp, format, result_args);
     va_end(result_args);
     va_end(length_args);
 
-    Byte *pIn = (Byte *)ascii->Array();
-
-    for(int ii=0; ii<length; ++ii)
-    {
-        u8chr ch;
-        int64_t e;
-        pIn = utf8_decode(pIn, &ch, &e);
-        if ( e )
-        {
-            PrintIssue(1007,
-                       true,
-                       false,
-                       "Warning invalid UTF8 character %04x, ignoring",
-                       ch);
-        }
-        buffer->Set(ii, ch);
-    }
-    buffer->SetCount(length);
-    ascii->SetCount(length);
+    CopyFromCString(tmp);
+    free(tmp);
 
     return true;
 }
@@ -401,6 +384,61 @@ int64_t U8String::IndexOf(U8String *u8String, bool ignoreCase)
             s = 0;
         }
     }
+
+    return true;
+}
+
+bool U8String::fwrite(const char *file, bool isAscii)
+{
+    FILE *fp = fopen(file, "w+");
+    if (fp == nullptr)
+    {
+        return false;
+    }
+    if ( isAscii )
+    {
+        ::fwrite(ascii->Array(), ascii->Count(), 1, fp);
+    }
+    else
+    {
+        ::fwrite(buffer->Array(), buffer->Count(), 1, fp);
+    }
+
+    fclose(fp);
+
+    return true;
+}
+
+bool U8String::fread(const char *file, bool isAscii)
+{
+    FILE *fp = fopen(file, "r");
+    if ( fp == nullptr )
+    {
+        return false;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    size_t len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    Byte *tmp = (Byte *)calloc(1, len+1);
+    ::fread(tmp, 1, len, fp);
+    fclose(fp);
+    Clear();
+    if ( isAscii )
+    {
+        CopyFromCString((const char *)tmp);
+    }
+    else
+    {
+        int64_t dwordLen = (int64_t)len/4;
+        auto *p1 = (int32_t *)tmp;
+        for(int64_t ii=0; ii<dwordLen; ++ii)
+        {
+            push_back(p1[ii]);
+        }
+    }
+
+    free(tmp);
 
     return true;
 }

@@ -180,7 +180,7 @@ public:
     /// \param u8String Pointer to string containing the text to check for.
     /// \param ignoreCase If false a case sensitive search is used, if true caseless search is used.
     /// \return True if the string is found, else false.
-    bool Contains(U8String *u8String, bool ignoreCase = false)
+    [[maybe_unused]] bool Contains(U8String *u8String, bool ignoreCase = false)
     {
         return IndexOf(u8String, ignoreCase);
     }
@@ -228,8 +228,6 @@ public:
     [[maybe_unused]] bool BeginsWith(const char *cString, bool ignoreCase)
     {
         auto len = (int64_t)strlen(cString);
-        auto c = (int64_t)Count();
-        auto s = c - len;
 
         return CompareAt(cString, ignoreCase, len, 0);
     }
@@ -244,6 +242,18 @@ public:
     /// \desc Provides printf style string creation for the U8String.
     /// \return True if successful else false.
     bool printf(char *format, ...);
+
+    /// \desc Writes the contents of the u8string to a file.
+    /// \param file full path file name of the file to write.
+    /// \param isAscii If true the file is written as a series of bytes, else its written as UTF8.
+    /// \return True if successful, false if an error occurs.
+    bool fwrite(const char *file, bool isAscii);
+
+    /// \desc Reads the contents of a file into the u8String.
+    /// \param file full path file name of the file to write.
+    /// \param isAscii If true the file is written as a series of bytes, else its written as UTF8.
+    /// \return True if successful, false if an error occurs.
+    bool fread(const char *file, bool isAscii);
 
 private:
     List<u8chr> *buffer;

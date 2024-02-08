@@ -14,6 +14,8 @@
 #include <iostream>
 #include <unistd.h>
 
+bool debugMode = false;
+
 /// \desc array of token names arranged in ID order used as debug aid to display a token _n
 /// in error and warning messages.
 const char *tokenNames[] =
@@ -177,6 +179,7 @@ enum CMD_ARGS
     , RunTwo         = 16
     , TraceZero      = 17
     , TraceOne       = 18
+    , OutputFile     = 19
 };
 
 /// \desc parses the input string and returns the command line argument.
@@ -219,10 +222,7 @@ CMD_ARGS GetCommand(char *arg)
             return HelpArg;
         case 'l':
         case 'L':
-            if (len < 3)
-            {
-                return LexerZero;
-            }
+
             switch (arg[2])
             {
                 default:
@@ -231,6 +231,9 @@ CMD_ARGS GetCommand(char *arg)
                 case '1':
                     return LexerOne;
             }
+        case 'o':
+        case 'O':
+            return OutputFile;
         case 'p':
         case 'P':
             if (len < 3)
@@ -332,6 +335,7 @@ void Help()
     printf("-w1     Ignore informational warnings.\n");
     printf("-w2     Show all warnings.\n");
     printf("-w3     Warnings are treated as errors. Default option.\n");
+    printf("-o name Set the name of the generated IL code program file.");
 }
 
 /// \desc Gets the file name from the file path name.
@@ -372,6 +376,162 @@ char *cwd()
     return buffer;
 }
 
+void AddValue(List<Byte> &output, int64_t value, bool addComma)
+{
+    char tmp[256];
+
+    sprintf(tmp, "%lld", value);
+    char *p1 = tmp;
+
+    while( *p1 )
+    {
+        output.push_back((Byte)*p1++);
+    }
+
+    if ( addComma )
+    {
+        output.push_back(',');
+    }
+}
+
+void AddString(List<Byte> &output, const char *value, bool addComma)
+{
+    char *p1 = (char *)value;
+
+    while( *p1 )
+    {
+        output.push_back((Byte)*p1++);
+    }
+    if ( addComma )
+    {
+        output.push_back(',');
+    }
+}
+
+void Serialize(U8String &output, DslValue *dslValue)
+{
+    U8String tmp = {};
+
+    if (dslValue->opcode != EFI || dslValue->moduleId > 0 )
+    {
+        tmp.printf((char *)"%d", dslValue->opcode);
+        output.push_back(&tmp);
+    }
+
+    switch( dslValue->opcode )
+    {
+        case END: case NOP: case PSP: case RFE:
+        case SLV: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
+        case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
+        case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
+        case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT: case NEG:
+        case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
+            break;
+        case PVA: case PSV: case PSL:
+            tmp.printf((char *)",%d", dslValue->operand);
+            output.push_back(&tmp);
+            if ( debugMode )
+            {
+                tmp.printf((char *)",%s,%s", dslValue->variableName.cStr(),
+                              dslValue->variableScriptName.cStr());
+                output.push_back(&tmp);
+            }
+            break;
+        case JBF:
+        case PCV:
+            tmp.printf((char *)",%d", dslValue->operand);
+            output.push_back(&tmp);
+            break;
+        case JIF: case JIT:
+            tmp.printf((char *)",%lld,%lld,%d", dslValue->operand, dslValue->location, dslValue->bValue);
+            output.push_back(&tmp);
+            break;
+        case JMP: case JSR:
+            tmp.printf((char *)",%d", dslValue->location);
+            output.push_back(&tmp);
+            break;
+        case EFI:
+            if ( dslValue->moduleId > 0 )
+            {
+                tmp.printf((char *)",%d,%d", dslValue->operand, dslValue->location);
+                output.push_back(&tmp);
+                if ( debugMode )
+                {
+                    tmp.printf((char *)",%s,%s", dslValue->variableName.cStr(),
+                               dslValue->variableScriptName.cStr());
+                    output.push_back(&tmp);
+                }
+            }
+            break;
+        case DEF:
+        {
+            U8String buffer = {};
+            tmp.printf((char *)",%s", dslValue->GetValueAsString(&buffer, false, false));
+            output.push_back(&tmp);
+            if ( debugMode )
+            {
+                tmp.printf((char *)",%s,%s", dslValue->variableName.cStr(),
+                              dslValue->variableScriptName.cStr());
+                output.push_back(&tmp);
+            }
+            break;
+        }
+        case PSI:
+        {
+            U8String buffer = {};
+            tmp.printf((char *)",%s",
+                          dslValue->GetValueAsString(&buffer, false, false));
+            output.push_back(&tmp);
+            break;
+        }
+        case JTB:
+            tmp.printf((char *)",%lld", dslValue->cases.Count());
+            output.push_back(&tmp);
+            for(int ii=0; ii<dslValue->cases.Count(); ++ii)
+            {
+                U8String buffer = {};
+                tmp.printf((char *)",%c,%lld,%lld,%s",
+                              dslValue->cases[ii]->type == DEFAULT ? 'D' :'C',
+                              dslValue->cases[ii]->operand,
+                              dslValue->cases[ii]->location,
+                              dslValue->cases[ii]->GetValueAsString(&buffer,
+                                     false, false), false);
+                output.push_back(&tmp);
+            }
+            break;
+        case DCS:
+            tmp.printf((char *)",%lld,%lld", dslValue->operand, dslValue->iValue);
+            output.push_back(&tmp);
+            break;
+        case CID:
+            tmp.printf((char *)",%lld", dslValue->moduleId);
+            output.push_back(&tmp);
+            break;
+    }
+}
+
+void WriteProgram(const char *file)
+{
+    U8String output;
+
+    for(int ii=0; ii<program.Count(); ++ii)
+    {
+        Serialize(output, program[ii]);
+
+        if ( ii + 1 < program.Count() )
+        {
+            output.push_back('\n');
+        }
+    }
+
+    output.fwrite(file, true);
+}
+
+void ReadProgram(const char *file)
+{
+
+}
+
 /// \desc Entry point for the compiler.
 int main(int argc, char *argv[])
 {
@@ -393,6 +553,9 @@ int main(int argc, char *argv[])
 
     int64_t runLevel = 0;
     int64_t displayLevel = 0;
+
+    char outputFile[1024];
+    strcpy(outputFile, "output.csv");
 
     for(int ii=1; ii<argc; ++ii)
     {
@@ -439,6 +602,10 @@ int main(int argc, char *argv[])
                 break;
             case LexerOne:
                 lexerInfoLevel = 1;
+                break;
+            case OutputFile:
+                ++ii;
+                strcpy(outputFile, argv[ii]);
                 break;
             case ParserZero:
                 parserInfoLevel = 0;
@@ -543,6 +710,7 @@ int main(int argc, char *argv[])
             delete parser;
             return -3;
         }
+        WriteProgram(outputFile);
     }
 
     if ( runLevel == 0 )

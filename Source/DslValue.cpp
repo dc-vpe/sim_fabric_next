@@ -1283,24 +1283,6 @@ void DslValue::Print(bool showEscapes)
     }
 }
 
-bool DslValue::IsValue(int64_t value)
-{
-    switch( type )
-    {
-        default:
-        case INTEGER_VALUE:
-            return iValue = value;
-        case DOUBLE_VALUE:
-            return (int64_t)dValue == value;
-        case STRING_VALUE:
-            return sValue.GetInt() == value;
-        case CHAR_VALUE:
-            return cValue == value;
-        case BOOL_VALUE:
-            return bValue == value;
-    }
-}
-
 void DslValue::printItem(bool showEscapes)
 {
     switch( type )
@@ -1518,27 +1500,84 @@ bool DslValue::AppendAsJsonText(U8String *buffer)
     return true;
 }
 
-const char *DslValue::GetAsString()
+/// \desc Writes the contents of the dsl value to the supplied u8String buffer.
+/// \param out Reference to an output buffer of type u8String that receives the formatted value.
+/// \param addComma if true a trailing comma is added after the value.
+/// \param simpleMode If true only the value is placed in the output buffer, else formatted
+///                   values are added that specify the type of value.
+/// \returns A pointer to a const char * buffer in the U8String containing the text. This allows
+///          the return parameter to be used in other calls directly as long as it is read and
+///          not changed.
+const char *DslValue::GetValueAsString(U8String *out, bool addComma, bool simpleMode)
 {
-    static U8String out;
     switch( type )
     {
         default:
-            return out.cStr();
+            break;
+        case COLLECTION:
+            if ( !simpleMode )
+            {
+                out->push_back('C');
+                out->push_back(',');
+            }
+            AppendAsJsonText(out);
+            break;
         case INTEGER_VALUE:
-            out.printf((char *)"%lld", iValue);
-            return out.cStr();
+            if ( !simpleMode )
+            {
+                out->printf((char *)"I,%lld", iValue);
+            }
+            else
+            {
+                out->printf((char *)"%lld", iValue);
+            }
+            break;
         case DOUBLE_VALUE:
-            out.printf((char *)"%d", dValue);
-            return out.cStr();
+            if ( !simpleMode )
+            {
+                out->printf((char *)"D,%d", dValue);
+            }
+            else
+            {
+                out->printf((char *)"%d", dValue);
+            }
+            break;
         case CHAR_VALUE:
-            out.push_back(cValue);
-            return out.cStr();
+            if ( !simpleMode )
+            {
+                out->printf((char *)"H,%d", cValue);
+            }
+            else
+            {
+                out->printf((char *)"%d", cValue);
+            }
+            break;
         case STRING_VALUE:
-            out.CopyFrom(&sValue);
-            return out.cStr();
+            if ( !simpleMode )
+            {
+                out->printf((char *)"S,%s", sValue.cStr());
+            }
+            else
+            {
+                out->printf((char *)"%s", sValue.cStr());
+            }
+            break;
         case BOOL_VALUE:
-            out.CopyFromCString(bValue ? "true" : "false");
-            return out.cStr();
+            if ( !simpleMode )
+            {
+                out->printf((char *)"B,%s", bValue ? "true" : "false");
+            }
+            else
+            {
+                out->printf((char *)"%s", bValue ? "true" : "false");
+            }
+            break;
     }
+
+    if ( addComma )
+    {
+        out->push_back(',');
+    }
+
+    return out->cStr();
 }

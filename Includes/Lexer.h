@@ -212,7 +212,7 @@ private:
     static bool IsStaticType(TokenTypes type);
     bool IsStaticExpression(LocationInfo end);
     bool ProcessStaticExpression(DslValue *dslValue, LocationInfo end, bool ignoreErrors, bool initializeVariable);
-    bool ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index);
+    bool ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index, bool ignoreErrors);
     bool DefineSingleVariableAssignment(TokenTypes type, Token *token);
     bool IsCollectionAssignment();
     static void AddEmptyCollectionElement(Token *token, U8String *key, int64_t &index);

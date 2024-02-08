@@ -248,10 +248,6 @@ public:
     /// \desc Invert this
     void NEG();
 
-    /// \desc Checks if value is equal to the value stored in this index.
-    /// \return True if the values are equal, else false.
-    bool IsValue(int64_t value);
-
     /// \desc Gets the dsl values store in the provided collection.
     /// \param dslValue DslValue to get the collections dslValues.
     /// \param keyData Pointer to a caller supplied list that is filled in with the key data information
@@ -259,12 +255,15 @@ public:
     ///                a collection.
     static void GetKeyData(DslValue *dslValue, List<KeyData *> *keyData);
 
-    /// \desc Writes the value of this dsl value to the provided u8String
-    /// \remark This method only works for the base values of the dsl value
-    ///         type. Collections are not supported. The intent of this
-    ///         method is to simplify capturing and output of dsl values
-    ///         that can be pre-calculated at lexer time.
-    const char *GetAsString();
+    /// \desc Writes the contents of the dsl value to the supplied u8String buffer.
+    /// \param out Reference to an output buffer of type u8String that receives the formatted value.
+    /// \param addComma if true a trailing comma is added after the value.
+    /// \param simpleMode If true only the value is placed in the output buffer, else formatted
+    ///                   values are added that specify the type of value.
+    /// \returns A pointer to a const char * buffer in the U8String containing the text. This allows
+    ///          the return parameter to be used in other calls directly as long as it is read and
+    ///          not changed.
+    const char *GetValueAsString(U8String *out, bool addComma, bool simpleMode);
 
 private:
 
