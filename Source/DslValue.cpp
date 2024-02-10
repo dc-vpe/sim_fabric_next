@@ -115,6 +115,11 @@ DslValue::DslValue(U8String *u8String)
 ///         a different instance than the right one.
 void DslValue::CopyCollection(DslValue *right)
 {
+    if ( right->type != COLLECTION )
+    {
+        return;
+    }
+
     type = right->type;
     iValue = right->iValue;
     dValue = right->dValue;
@@ -1502,75 +1507,34 @@ bool DslValue::AppendAsJsonText(U8String *buffer)
 
 /// \desc Writes the contents of the dsl value to the supplied u8String buffer.
 /// \param out Reference to an output buffer of type u8String that receives the formatted value.
-/// \param addComma if true a trailing comma is added after the value.
 /// \param simpleMode If true only the value is placed in the output buffer, else formatted
 ///                   values are added that specify the type of value.
 /// \returns A pointer to a const char * buffer in the U8String containing the text. This allows
 ///          the return parameter to be used in other calls directly as long as it is read and
 ///          not changed.
-const char *DslValue::GetValueAsString(U8String *out, bool addComma, bool simpleMode)
+const char *DslValue::GetValueAsString(U8String *out, bool addComma)
 {
     switch( type )
     {
         default:
             break;
         case COLLECTION:
-            if ( !simpleMode )
-            {
-                out->push_back('C');
-                out->push_back(',');
-            }
             AppendAsJsonText(out);
             break;
         case INTEGER_VALUE:
-            if ( !simpleMode )
-            {
-                out->printf((char *)"I,%lld", iValue);
-            }
-            else
-            {
-                out->printf((char *)"%lld", iValue);
-            }
+            out->printf((char *)"%lld", iValue);
             break;
         case DOUBLE_VALUE:
-            if ( !simpleMode )
-            {
-                out->printf((char *)"D,%d", dValue);
-            }
-            else
-            {
-                out->printf((char *)"%d", dValue);
-            }
+            out->printf((char *)"%d", dValue);
             break;
         case CHAR_VALUE:
-            if ( !simpleMode )
-            {
-                out->printf((char *)"H,%d", cValue);
-            }
-            else
-            {
-                out->printf((char *)"%d", cValue);
-            }
+            out->printf((char *)"%d", cValue);
             break;
         case STRING_VALUE:
-            if ( !simpleMode )
-            {
-                out->printf((char *)"S,%s", sValue.cStr());
-            }
-            else
-            {
-                out->printf((char *)"%s", sValue.cStr());
-            }
+            out->printf((char *)"%s", sValue.cStr());
             break;
         case BOOL_VALUE:
-            if ( !simpleMode )
-            {
-                out->printf((char *)"B,%s", bValue ? "true" : "false");
-            }
-            else
-            {
-                out->printf((char *)"%s", bValue ? "true" : "false");
-            }
+            out->printf((char *)"%s", bValue ? "true" : "false");
             break;
     }
 

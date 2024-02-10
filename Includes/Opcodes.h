@@ -7,7 +7,7 @@
 
 enum OPCODES
 {
-    NOP = 0,//No operation  NOP
+    NOP = 1,//No operation  NOP
     DEF,    //Define a variable
     SAV,    //Save to variable
     EXP,    //Exponent

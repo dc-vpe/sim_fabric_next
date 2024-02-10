@@ -158,7 +158,7 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
         case MUA: case DIA: case MOA: case ADD: case SUB: case SVL: case SVR: case TLS:
         case TLE: case TGR: case TGE: case TEQ: case TNE: case BND: case XOR: case BOR:
         case AND: case LOR: case CTI: case CTD: case CTC: case CTS: case CTB: case SAV:
-        case INC: case DEC: case INL: case DEL:
+        case INC: case DEC: case INL: case DEL: case CID:
         case SLV:
         case PSP:
             value = new DslValue(token->value);
@@ -306,13 +306,12 @@ bool Parser::Parse()
 
     if ( tokens.Count() == 0 )
     {
-        OutputCode(token, NOP);
+        OutputCode(token, CID);
     }
     else
     {
-        OutputCode(token, NOP);
+        OutputCode(token, CID);
         token = tokens[0];
-
     }
 
     Expression(tokens.Count());
@@ -569,10 +568,16 @@ Token *Parser::Expression(int64_t tokenLocation)
 
     Token *lastVariable; //used for prefix operations
 
+    int64_t lastModuleId = output.Peek()->value->moduleId;
+
     //Generate the run time code.
     while( !output.IsEmpty() )
     {
         Token *currentToken = output.Dequeue();
+        if ( lastModuleId != currentToken->value->moduleId )
+        {
+            OutputCode(currentToken, CID);
+        }
         switch(currentToken->type)
         {
             case WHILE_COND_BEGIN:

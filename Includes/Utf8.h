@@ -24,15 +24,50 @@
 #undef U8_ERROR_CHR
 #endif
 
-/// \desc
-/// Decodes the next character, from the buffer and reports any errors in e.
+/// \desc Checks if the character indicates that more characters follow.
+/// \return True if more bytes are needed to represent the UTF8 character, else false.
+#define UTF8_IS_CONTINUATION(utf8) (((utf8) & 0xc0) == 0x80)
+
+/// \desc Returns the minimum number of bytes needed to store the utf8 character.
+/// \param ch character to get the minimum length.
+/// \return Number of bytes required to store the UTF8 character.
+static int min_u8_ch_len(u8chr ch)
+{
+    Byte *p = (Byte *)&ch;
+    if (  (p[0] & 0x80) == 0x0 )
+    {
+        return 1;
+    }
+    if (  (p[0] & 0xe0) == 0xc0 &&
+          UTF8_IS_CONTINUATION(p[1]) )
+    {
+        return 2;
+    }
+    if ( (p[0] & 0xf0) == 0xe0 &&
+         UTF8_IS_CONTINUATION(p[1]) &&
+         UTF8_IS_CONTINUATION(p[2]))
+    {
+        return 3;
+    }
+    if ( (p[0] & 0xf8) == 0xf0 &&
+         UTF8_IS_CONTINUATION(p[1]) &&
+         UTF8_IS_CONTINUATION(p[2]) &&
+         UTF8_IS_CONTINUATION(p[3]))
+    {
+        return 3;
+    }
+
+    return 0; //invalid encoded character
+}
+
+/// \desc Decodes the next character, from the buffer and reports any errors in e.
 /// \param buf Pointer to the input characters to be processed.
-/// \param c Pointer to the output character in utf8 compatible format.
+/// \param ch Pointer to the output character in DWORD utf8 format.
 /// \param e Pointer to the error return variable.
 /// \return  Returns a pointer to the next character in buffer to be read. e will be non-zero if an error occurs.
 /// \remark Branch-less decoder, so a dword 4 bytes will be read from the
-/// buffer regardless of the actual length of the next character.
-static Byte *utf8_decode(void *buf, u8chr *c, int64_t *e)
+///         buffer regardless of the actual length of the next character.
+static Byte *utf8_decode(void *buf, u8chr *ch, int64_t *e)
 {
     static const char lengths[] =
     {
@@ -59,16 +94,16 @@ static Byte *utf8_decode(void *buf, u8chr *c, int64_t *e)
     /* Assume a four-byte character and load four bytes. Unused bits are
      * shifted out.
      */
-    *c = (uint32_t) (s[0] & masks[len]) << 18;
-    *c |= (uint32_t) (s[1] & 0x3f) << 12;
-    *c |= (uint32_t) (s[2] & 0x3f) << 6;
-    *c |= (uint32_t) (s[3] & 0x3f) << 0;
-    *c >>= shiftConsts[len];
+    *ch = (uint32_t) (s[0] & masks[len]) << 18;
+    *ch |= (uint32_t) (s[1] & 0x3f) << 12;
+    *ch |= (uint32_t) (s[2] & 0x3f) << 6;
+    *ch |= (uint32_t) (s[3] & 0x3f) << 0;
+    *ch >>= shiftConsts[len];
 
     /* Accumulate the various error conditions. */
-    *e = (*c < minimumValues[len]) << 6; // non-canonical encoding
-    *e |= ((*c >> 11) == 0x1b) << 7;  // surrogate half?
-    *e |= (*c > 0x10FFFF) << 8;  // out of range?
+    *e = (*ch < minimumValues[len]) << 6; // non-canonical encoding
+    *e |= ((*ch >> 11) == 0x1b) << 7;  // surrogate half?
+    *e |= (*ch > 0x10FFFF) << 8;  // out of range?
     *e |= (s[1] & 0xc0) >> 2;
     *e |= (s[2] & 0xc0) >> 4;
     *e |= (s[3]) >> 6;

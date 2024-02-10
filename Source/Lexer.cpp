@@ -2392,7 +2392,7 @@ bool Lexer::DefineSwitch()
                     U8String buffer;
                     PrintIssue(2156, true, false,
                                "Case value %s has already used in this switch statement",
-                               caseValue.GetValueAsString(&buffer, false, false));
+                               caseValue.GetValueAsString(&buffer, false));
                     SkipToEndOfBlock(start);
                     return false;
                 }

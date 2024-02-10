@@ -258,12 +258,10 @@ public:
     /// \desc Writes the contents of the dsl value to the supplied u8String buffer.
     /// \param out Reference to an output buffer of type u8String that receives the formatted value.
     /// \param addComma if true a trailing comma is added after the value.
-    /// \param simpleMode If true only the value is placed in the output buffer, else formatted
-    ///                   values are added that specify the type of value.
     /// \returns A pointer to a const char * buffer in the U8String containing the text. This allows
     ///          the return parameter to be used in other calls directly as long as it is read and
     ///          not changed.
-    const char *GetValueAsString(U8String *out, bool addComma, bool simpleMode);
+    const char *GetValueAsString(U8String *out, bool addComma);
 
 private:
 

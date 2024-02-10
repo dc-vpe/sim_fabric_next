@@ -8,6 +8,8 @@
 #include "dsl_types.h"
 #include "ErrorProcessing.h"
 #include <memory.h>
+#include <malloc.h>
+#include <cstdio>
 
 /// \desc This template class creates a dynamically sizable array of items. Syntax is similar to
 ///       the C# list type.
@@ -150,9 +152,56 @@ public:
     /// \desc Gets a read only pointer to the internal array.
     const Type *Array() { return array; }
 
-    /// \desc Call after manually updating the array to set the count to the correct size.
-    /// \param newCount new count.
-    void SetCount(int newCount) { count = newCount; }
+    /// \desc Writes the list to a file.
+    /// \param file Full path file name of the file to read into the list.
+    /// \returns True if successful, false if an error occurs. If an error
+    ///          occurs errno is set to the error code and can be written
+    ///          with perror().
+    bool fwrite(const char *file)
+    {
+        FILE *fp = fopen(file, "wb+");
+        if ( fp == nullptr )
+        {
+            return false;
+        }
+        int64_t len = Count();;
+        if ( ::fwrite(array, sizeof(Type), len, fp) != len )
+        {
+            fclose(fp);
+            return false;
+        }
+
+        fclose(fp);
+
+        return true;
+    }
+
+    /// \desc Reads the list from a file.
+    /// \param file Full path file name of the file to read into the list.
+    /// \returns True if successful, false if an error occurs. If an error
+    ///          occurs errno is set to the error code and can be written
+    ///          with perror().
+    bool fread(const char *file)
+    {
+        FILE *fp = fopen(file, "rb");
+        if ( fp == nullptr )
+        {
+            return false;
+        }
+        fseek(fp, 0, SEEK_END);
+        size_t len = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        len /= sizeof(Type);
+        Extend(len+1);
+        if ( ::fread(array, sizeof(Type), len, fp) != len )
+        {
+            fclose(fp);
+            return false;
+        }
+        count = (int64_t)len;
+
+        return true;
+    }
 
 private:
     /// \desc pointer to the buffer used to store list elements.
@@ -197,5 +246,4 @@ private:
         return true;
     }
 };
-
 #endif //DSL_CPP_LIST_H

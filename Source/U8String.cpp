@@ -390,7 +390,7 @@ int64_t U8String::IndexOf(U8String *u8String, bool ignoreCase)
 
 bool U8String::fwrite(const char *file, bool isAscii)
 {
-    FILE *fp = fopen(file, "w+");
+    FILE *fp = fopen(file, "w");
     if (fp == nullptr)
     {
         return false;

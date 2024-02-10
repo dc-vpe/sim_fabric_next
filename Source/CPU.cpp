@@ -19,6 +19,7 @@
 #pragma ide diagnostic ignored "OCDFAInspection"
 const char *OpCodeNames[] =
 {
+        "",       //Opcodes start with 1
         "NOP",    //No operation  NOP
         "DEF",    //Define a variable
         "SAV",    //Save to variable
@@ -75,7 +76,8 @@ const char *OpCodeNames[] =
         "MOA",    //Modulo Assign
         "DCS",    //Save non-static result in a collection during definition
         "EFI",    //Event function information
-        "RFE"     //Return from event.
+        "RFE",    //Return from event.
+        "CID"     //Change module id.
 };
 
 int64_t  CPU::errorCode;

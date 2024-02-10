@@ -376,166 +376,424 @@ char *cwd()
     return buffer;
 }
 
-void AddValue(List<Byte> &output, int64_t value, bool addComma)
+/// \desc Adds the integer value in the fewest bytes needed to store the
+///       value based on its actual value.
+/// \param output List to write the bytes to.
+/// \param value value to be written to the output list.
+/// \remark The value is written as a count of bytes followed by the actual bytes. The single
+///         exception is if the value is < 128 in which case a single byte value is written.
+///         The reader then looks at the count byte when reading the value in and if the high
+///         bit is clear only the byte is read.
+void AddInt(List<Byte> &output, int64_t value)
 {
-    char tmp[256];
-
-    sprintf(tmp, "%lld", value);
-    char *p1 = tmp;
-
-    while( *p1 )
+    //unsigned is used to optimize checking for number of bytes needed to store the value.
+    auto v = (uint64_t) value;
+    if (v < 128)
     {
-        output.push_back((Byte)*p1++);
+        output.push_back(v);
+        return;
     }
 
-    if ( addComma )
+    //Bytes are written from the most to least significant. This makes reading slightly
+    //more efficient as the reversing of the bytes does not occur on read.
+    List<Byte> stack = {};
+
+    while (v > 0)
     {
-        output.push_back(',');
+        stack.push_back((Byte) (v & 0xFF));
+        v >>= 8;
+    }
+
+    output.push_back(0x80 + stack.Count());
+    while (stack.Count() > 0)
+    {
+        output.push_back(stack.pop_back());
     }
 }
 
-void AddString(List<Byte> &output, const char *value, bool addComma)
-{
-    char *p1 = (char *)value;
+//
+//    else if ( v < 256 )
+//    {
+//        output.push_back(1);
+//        output.push_back(v);
+//        return;
+//    }
+//    else if ( v < 65536 )
+//    {
+//        output.push_back(2);
+//        output.push_back((v >> 8) & 0xFF);
+//        output.push_back(v & 0xFF);
+//        return;
+//    }
+//    else if ( v < 16777216 )
+//    {
+//        output.push_back(3);
+//        output.push_back((v >> 16) & 0xFF);
+//        output.push_back((v >> 8) & 0xFF);
+//        output.push_back(v & 0xFF);
+//        return;
+//    }
+//    else if ( v <  4294967296)
+//    {
+//        output.push_back(4);
+//        output.push_back((v >> 24) & 0xFF);
+//        output.push_back((v >> 16) & 0xFF);
+//        output.push_back((v >> 8) & 0xFF);
+//        output.push_back(v & 0xFF);
+//        return;
+//    }
+//    else if ( v < 1099511627776 )
+//    {
+//        output.push_back(6);
+//        output.push_back((v >> 24) & 0xFF);
+//        output.push_back((v >> 16) & 0xFF);
+//        output.push_back((v >> 8) & 0xFF);
+//        output.push_back(v & 0xFF);
+//        return;
+//    }
+//    output.push_back(8);
+//    output.push_back((v >> 56) & 0xFF);
+//    output.push_back((v >> 48) & 0xFF);
+//    output.push_back((v >> 40) & 0xFF);
+//    output.push_back((v >> 32) & 0xFF);
+//    output.push_back((v >> 24) & 0xFF);
+//    output.push_back((v >> 16) & 0xFF);
+//    output.push_back((v >> 8) & 0xFF);
+//    output.push_back(v & 0xFF);
+//}
 
-    while( *p1 )
+int64_t GetInt(List<Byte> &input, int64_t &current)
+{
+    int64_t value = 0;
+    Byte len = input.get(current++);
+    //positive values < 128 are stored as a single byte as these values
+    //can be detected without a count.
+    if ( len < 128 )
     {
-        output.push_back((Byte)*p1++);
+        return (int64_t) len;
     }
-    if ( addComma )
+
+    len &= 0x7f; //msb is not used as max length is 8
+    while( 0 < len--)
     {
-        output.push_back(',');
+        value <<= 8;
+        value |= input.get(current++);
+    }
+
+    return value;
+}
+
+void AddDouble(List<Byte> &output, double value)
+{
+    Byte *p1 = (Byte *)&value;
+    for(int64_t ii=0; ii<sizeof(double); ++ii)
+    {
+        output.push_back(p1[ii]);
     }
 }
 
-void Serialize(U8String &output, DslValue *dslValue)
+double GetDouble(List<Byte> &input, int64_t position)
 {
-    U8String tmp = {};
-
-    if (dslValue->opcode != EFI || dslValue->moduleId > 0 )
+    double value;
+    Byte *p1 = (Byte *)&value;
+    for(int64_t ii=0; ii<sizeof(double); ++ii)
     {
-        tmp.printf((char *)"%d", dslValue->opcode);
-        output.push_back(&tmp);
+        *p1++ = input[position++];
     }
 
-    switch( dslValue->opcode )
+    return value;
+}
+
+void AddString(List<Byte> &output, U8String *u8String)
+{
+    output.push_back(u8String->Count());
+
+    for(int64_t ii=0; ii < u8String->Count(); ++ii)
     {
-        case END: case NOP: case PSP: case RFE:
-        case SLV: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
-        case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
-        case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
-        case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT: case NEG:
-        case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
-            break;
-        case PVA: case PSV: case PSL:
-            tmp.printf((char *)",%d", dslValue->operand);
-            output.push_back(&tmp);
-            if ( debugMode )
+        u8chr ch = u8String->get(ii);
+        Byte *p = (Byte *)&ch;
+        int64_t len = min_u8_ch_len(ch);
+        while( 0 < len-- )
+        {
+            output.push_back(*p++);
+        }
+    }
+}
+
+void GetString(List<Byte> &input, int64_t &current, U8String *u8String)
+{
+    u8chr ch;
+    int64_t e;
+    int64_t length = GetInt(input, current);
+    Byte *pIn = (Byte *)&input.Array()[current];
+    for(int64_t ii=0; ii < length; ++ii)
+    {
+        pIn = utf8_decode(pIn, &ch, &e);
+        u8String->push_back(ch);
+    }
+}
+
+/// \desc Adds a new dsl value instruction to the output list.
+/// \param output List of types where the compacted program IL is to be written.
+/// \param dslValue DslValue containing the instruction to be written.
+void AddValue(List<Byte> &output, DslValue *dslValue)
+{
+    switch( dslValue->type )
+    {
+        case COLLECTION:
+        {
+            AddInt(output, 1);
+            List<KeyData *> list;
+            DslValue::GetKeyData(dslValue, &list);
+            AddInt(output, list.Count());
+            for (int ii = 0; ii < list.Count(); ++ii)
             {
-                tmp.printf((char *)",%s,%s", dslValue->variableName.cStr(),
-                              dslValue->variableScriptName.cStr());
-                output.push_back(&tmp);
+                auto *tmpKey  = (U8String *) list.get(ii)->Key();
+                auto *tmpData = (DslValue *) list.get(ii)->Data();
+                AddString(output, tmpKey);
+                AddValue(output, tmpData);
             }
             break;
-        case JBF:
-        case PCV:
-            tmp.printf((char *)",%d", dslValue->operand);
-            output.push_back(&tmp);
+        }
+        case INTEGER_VALUE:
+            AddInt(output, 2);
+            AddInt(output, dslValue->iValue);
             break;
-        case JIF: case JIT:
-            tmp.printf((char *)",%lld,%lld,%d", dslValue->operand, dslValue->location, dslValue->bValue);
-            output.push_back(&tmp);
+        case DOUBLE_VALUE:
+            AddInt(output, 3);
+            AddDouble(output, dslValue->dValue);
             break;
-        case JMP: case JSR:
-            tmp.printf((char *)",%d", dslValue->location);
-            output.push_back(&tmp);
+        case CHAR_VALUE:
+            AddInt(output, 4);
+            AddInt(output, dslValue->cValue);
             break;
-        case EFI:
-            if ( dslValue->moduleId > 0 )
+        case STRING_VALUE:
+            AddInt(output, 5);
+            AddString(output, &dslValue->sValue);
+            break;
+        case BOOL_VALUE:
+            AddInt(output, 6);
+            AddInt(output, dslValue->bValue);
+            break;
+        default:
+            break;
+    }
+}
+
+/// \desc Gets the next value from the input list of bytes.
+/// \param input List of input bytes containing the IL program.
+/// \param position Current position in the input list.
+/// \param dslValue Returns value.
+void GetValue(List<Byte> &input, int64_t &position, DslValue *dslValue)
+{
+    int64_t typeCode = GetInt(input, position);
+    switch( typeCode )
+    {
+        default:
+            break;
+        case 1:
+        {
+            int64_t count = GetInt(input, position);
+            for(int64_t ii=0; ii<count; ++ii)
             {
-                tmp.printf((char *)",%d,%d", dslValue->operand, dslValue->location);
-                output.push_back(&tmp);
-                if ( debugMode )
+                auto *key = new U8String();
+                auto *elementDslValue = new DslValue();
+                GetString(input, position, key);
+                GetValue(input, position, elementDslValue);
+                dslValue->indexes.Set(key, (void *)elementDslValue);
+            }
+            break;
+        }
+        case 2:
+            dslValue->iValue = GetInt(input, position);
+            break;
+        case 3:
+            dslValue->dValue = GetDouble(input, position);
+            break;
+        case 4:
+            dslValue->cValue = GetInt(input, position);
+            break;
+        case 5:
+            GetString(input, position, &dslValue->sValue);
+            break;
+        case 6:
+            dslValue->bValue = GetInt(input, position);
+            break;
+    }
+}
+
+/// \desc Serializes an instruction in the compiled program into a common IL
+///       binary format across all OS and CPUs.
+/// \param output list of bytes containing the serialized program.
+/// \param dslValue program instruction to be serialized.
+void Serialize(List<Byte> &output)
+{
+    for(int64_t ii=0; ii<program.Count(); ++ii)
+    {
+        DslValue *dslValue = program[ii];
+        if (dslValue->opcode != EFI || dslValue->moduleId > 0 )
+        {
+            output.push_back(dslValue->opcode);
+        }
+        switch (dslValue->opcode)
+        {
+            case END: case NOP: case PSP: case RFE: case SLV: case SAV: case ADA:
+            case SUA: case MUA: case DIA: case MOA: case EXP: case MUL: case DIV:
+            case ADD: case SUB: case MOD: case XOR: case BND: case BOR: case SVL:
+            case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS:case TLE:
+            case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT:
+            case NEG: case CTI: case CTD: case CTC: case CTS: case CTB: case DFL:
+            case RET:
+                break;
+            case PVA: case PSV: case PSL: case JBF: case PCV:
+                AddInt(output, dslValue->operand);
+                break;
+            case JIF: case JIT:
+                AddInt(output, dslValue->operand);
+                AddInt(output, dslValue->location);
+                AddInt(output, dslValue->bValue);
+                break;
+            case JMP: case JSR:
+                AddInt(output, dslValue->location);
+                break;
+            case EFI:
+                if (dslValue->moduleId > 0)
                 {
-                    tmp.printf((char *)",%s,%s", dslValue->variableName.cStr(),
-                               dslValue->variableScriptName.cStr());
-                    output.push_back(&tmp);
+                    AddInt(output, dslValue->operand);
+                    AddInt(output, dslValue->location);
                 }
-            }
-            break;
-        case DEF:
-        {
-            U8String buffer = {};
-            tmp.printf((char *)",%s", dslValue->GetValueAsString(&buffer, false, false));
-            output.push_back(&tmp);
-            if ( debugMode )
-            {
-                tmp.printf((char *)",%s,%s", dslValue->variableName.cStr(),
-                              dslValue->variableScriptName.cStr());
-                output.push_back(&tmp);
-            }
-            break;
+                break;
+            case DEF: case PSI:
+                AddValue(output, dslValue);
+                break;
+            case JTB:
+                AddInt(output, dslValue->cases.Count());
+                for (int tt = 0; tt < dslValue->cases.Count(); ++tt)
+                {
+                    AddValue(output, dslValue->cases[tt]);
+                    AddInt(output, dslValue->cases[tt]->type == DEFAULT ? 1 : 0);
+                    AddInt(output, dslValue->cases[tt]->operand);
+                    AddInt(output, dslValue->cases[tt]->location);
+                }
+                break;
+            case DCS:
+                AddInt(output, dslValue->operand);
+                AddInt(output, dslValue->iValue);
+                break;
+            case CID:
+                AddInt(output, dslValue->moduleId);
+                break;
         }
-        case PSI:
+        if ( debugMode )
         {
-            U8String buffer = {};
-            tmp.printf((char *)",%s",
-                          dslValue->GetValueAsString(&buffer, false, false));
-            output.push_back(&tmp);
-            break;
+            AddString(output, &dslValue->variableName);
+            AddString(output, &dslValue->variableScriptName);
         }
-        case JTB:
-            tmp.printf((char *)",%lld", dslValue->cases.Count());
-            output.push_back(&tmp);
-            for(int ii=0; ii<dslValue->cases.Count(); ++ii)
+    }
+}
+
+/// \desc Translates the IL bytes into a runnable program.
+///       A program that can be run is a set of dslValues.
+/// \param input List of bytes created by the serialize function.
+void DeSerialize(List<Byte> &input)
+{
+    DslValue *dslValue;
+
+    int64_t position = 0;
+    int64_t lastModuleId = 1;
+
+    while(position < input.Count() )
+    {
+        auto opcode = (OPCODES)input.get(position++);
+        dslValue = new DslValue(opcode);
+        dslValue->moduleId = lastModuleId;
+        switch( opcode )
+        {
+            case END: case NOP: case PSP: case RFE:
+            case SLV: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
+            case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
+            case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
+            case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT: case NEG:
+            case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
+                break;
+            case PVA: case PSV: case PSL: case JBF: case PCV:
+                dslValue->operand = GetInt(input, position);
+                break;
+            case JIF: case JIT:
+                dslValue->operand = GetInt(input, position);
+                dslValue->location = GetInt(input, position);
+                dslValue->bValue = GetInt(input, position);
+                break;
+            case JMP: case JSR:
+                dslValue->location = GetInt(input, position);
+                break;
+            case EFI:
+                dslValue->operand = GetInt(input, position);
+                dslValue->location = GetInt(input, position);
+                break;
+            case DEF: case PSI:
+                GetValue(input, position, dslValue);
+                break;
+            case JTB:
             {
-                U8String buffer = {};
-                tmp.printf((char *)",%c,%lld,%lld,%s",
-                              dslValue->cases[ii]->type == DEFAULT ? 'D' :'C',
-                              dslValue->cases[ii]->operand,
-                              dslValue->cases[ii]->location,
-                              dslValue->cases[ii]->GetValueAsString(&buffer,
-                                     false, false), false);
-                output.push_back(&tmp);
+                int64_t count = GetInt(input, position);
+                for (int ii = 0; ii < count; ++ii)
+                {
+                    auto *caseValue = new DslValue();
+                    GetValue(input, position, caseValue);
+                    if (GetInt(input, position) == 1)
+                    {
+                        caseValue->type = DEFAULT;
+                    }
+                    caseValue->operand = GetInt(input, position);
+                    caseValue->location = GetInt(input, position);
+                    dslValue->cases.push_back(caseValue);
+                }
+                break;
             }
-            break;
-        case DCS:
-            tmp.printf((char *)",%lld,%lld", dslValue->operand, dslValue->iValue);
-            output.push_back(&tmp);
-            break;
-        case CID:
-            tmp.printf((char *)",%lld", dslValue->moduleId);
-            output.push_back(&tmp);
-            break;
+            case DCS:
+                dslValue->operand = GetInt(input,position);
+                dslValue->iValue = GetInt(input, position);
+                break;
+            case CID:
+                lastModuleId = GetInt(input, position);
+                dslValue->moduleId = lastModuleId;
+                break;
+        }
+
+        if ( debugMode )
+        {
+            GetString(input, position, &dslValue->variableName);
+            GetString(input, position, &dslValue->variableScriptName);
+        }
+
+        program.push_back(dslValue);
     }
 }
 
 void WriteProgram(const char *file)
 {
-    U8String output;
+    List<Byte> output;
 
-    for(int ii=0; ii<program.Count(); ++ii)
-    {
-        Serialize(output, program[ii]);
+    Serialize(output);
 
-        if ( ii + 1 < program.Count() )
-        {
-            output.push_back('\n');
-        }
-    }
-
-    output.fwrite(file, true);
+    output.fwrite(file);
 }
 
 void ReadProgram(const char *file)
 {
+    List<Byte> input;
 
+    input.fread(file);
+
+    program.Clear();
+
+    DeSerialize(input);
 }
 
-/// \desc Entry point for the compiler.
 int main(int argc, char *argv[])
 {
-    printf("DSL Version 0.8.5 (Alpha)\n");
+    printf("DSL Version 0.9.0 (Alpha)\n");
     printf("Working Folder %s\n", cwd());
 
     if ( argc < 2 )
@@ -555,7 +813,7 @@ int main(int argc, char *argv[])
     int64_t displayLevel = 0;
 
     char outputFile[1024];
-    strcpy(outputFile, "output.csv");
+    strcpy(outputFile, "output.bc");
 
     for(int ii=1; ii<argc; ++ii)
     {
