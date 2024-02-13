@@ -92,9 +92,12 @@ extern const char *standardFunctionNames[];
 extern const int64_t standardFunctionParams[];
 
 /// \desc List of currently supported run time system.
-extern U8String systemEventNames[];
+extern List<U8String *> systemEventNames;
 
 /// \desc Full path name of the output file to generate.
 extern U8String outputFile;
+
+/// \desc symbol file, contains the debugging symbols not needed for runtime.
+extern U8String symbolFile;
 
 #endif //DSL_CPP_PARSE_DATA_H

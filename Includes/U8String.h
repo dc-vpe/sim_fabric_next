@@ -25,8 +25,13 @@ class U8String
 {
 public:
     /// \desc Gets the length of the string in characters.
-    /// \return
+    /// \return The length of the string in characters.
+    /// \remark A multibyte UTF8 character is considered as a single character.
     size_t Count()  { return buffer->Count(); }
+
+    /// \desc Checks if the buffer is empty.
+    /// \return True of the u8String does not contain any characters, else false.
+    bool IsEmpty() { return Count() == 0; }
 
     /// \desc Creates a blank UTF8 string.
     U8String()

@@ -1071,9 +1071,9 @@ bool Lexer::DefineFunction(Token *token)
             definingEvent = true;
             currentEventFunction.CopyFromCString(funBegin->identifier->cStr());
             bool systemEvent = false;
-            for(int ii=1; ii<systemEventNames->Count(); ++ii)
+            for(int ii=1; ii<systemEventNames.Count(); ++ii)
             {
-                if ( systemEventNames->IsEqual(&funBegin->value->variableScriptName) )
+                if ( systemEventNames[ii]->IsEqual(&funBegin->value->variableScriptName) )
                 {
                     if ( modules[m_id-1]->systemEvents[ii].Count() > 0 )
                     {
@@ -1729,7 +1729,7 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
         case STRING_VALUE:
             if (PeekNextTokenType(2, true) == COLON)
             {
-                if (tmpValue->sValue.Count() == 0)
+                if (tmpValue->sValue.IsEmpty())
                 {
                     PrintIssue(2084, true, false, "Collection element keys cannot be empty.");
                     return ERROR_TOKEN;

@@ -42,9 +42,9 @@ public:
     static void DisplayASMCodeLines();
 
     /// \desc Initializes the CPU to run the program.
-    /// \param mode If True the program has been compiled in debug mode and contains debug information.
     /// \param ilFile Pointer to a u8String containing the full path name to the compiled il program.
-    bool Init(bool mode, U8String *ilFile);
+    /// \param symFile Pointer to u8String containing the full path name to the symbol file name.
+    bool Init(U8String *ilFile, U8String *symFile);
 
     /// \desc Runs the compiled program.
     bool Run();
@@ -67,8 +67,6 @@ private:
     long           nextTick; //next on text time
     int64_t        lastModuleId; //last module id changes with the instruction being executed
     int64_t        onTickEvent; //tracks the last tick event set, this changes when the instructions module changes.
-    bool           debugMode; //If true the program is compiled with debug information.
-
 
     List<Byte>          IL; //Bytes that make up the program.
     List<DslValue *>    instructions;   //The actual instructions that are run.
@@ -97,23 +95,27 @@ private:
     /// \param dslValue Pointer to the index containing the JTB opcode.
     void ProcessJumpTable(DslValue *dslValue);
 
-    /// \desc Gets the next integer value from the input IL vyte stream.
+    /// \desc Gets the next integer value from the input IL byte stream.
+    /// \param input Reference to a List<byte> that contains the byte stream.
     /// \param position Reference to the position position within the input stream.
-    int64_t GetInt(int64_t &position);
+    int64_t GetInt(List<Byte> &input, int64_t &position);
 
     /// \desc Gets the next double from the input IL byte stream.
+    /// \param input Reference to a List<byte> that contains the byte stream.
     /// \param position Reference to the position position within the input stream.
-    double GetDouble(int64_t position);
+    double GetDouble(List<Byte> &input, int64_t position);
 
     /// \desc Gets the next string from the input IL byte stream.
+    /// \param input Reference to a List<byte> that contains the byte stream.
     /// \param position Reference to the position position within the input stream.
     /// \param u8String Pointer to the string to be filled in with the decoded characters.
-    void GetString(int64_t &position, U8String *u8String);
+    void GetString(List<Byte> &input, int64_t &position, U8String *u8String);
 
     /// \desc Gets the next value from the input list of bytes.
+    /// \param input Reference to a List<byte> that contains the byte stream.
     /// \param position Current position in the input list.
     /// \param dslValue Returns value.
-    void GetValue(int64_t &position, DslValue *dslValue);
+    void GetValue(List<Byte> &input, int64_t &position, DslValue *dslValue);
 
     /// \desc Reads a list of bytes and translates them into dsl value runnable instructions.
     void DeSerialize();

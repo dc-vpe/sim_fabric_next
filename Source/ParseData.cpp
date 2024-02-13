@@ -138,12 +138,10 @@ int64_t standardFunctionParams[]=
 };
 
 /// \desc List of currently supported run time system.
-List<U8String> systemEventNames
-{
-        U8String(""),
-        U8String("OnError"),
-        U8String("OnTick")
-};
+List<U8String *> systemEventNames;
 
 /// \desc Full path name of the output file to generate.
 U8String outputFile;
+
+/// \desc symbol file, contains the debugging symbols not needed for runtime.
+U8String symbolFile;

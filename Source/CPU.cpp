@@ -93,6 +93,7 @@ void CPU::DisplayASMCodeLines()
     }
 }
 
+/// \desc Displays the IL Assembly for the program.
 int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
 {
     DslValue *dslValue = program[addr];
@@ -101,7 +102,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
     switch(dslValue->opcode)
     {
         case CID:
-            printf("\t%lld", dslValue->moduleId);
+            printf("\t%llx", (long long int)dslValue->moduleId);
             break;
         case DEF:
         {
@@ -120,11 +121,10 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
         case TEQ:  case TNE: case TGR:  case TGE: case TLS:
         case TLE: case AND: case LOR: case ADA: case SUA: case MUA: case DIA: case MOA:
         case RFE:
-            putchar('\t');
             break;
         case EFI:
             putchar('\t');
-            printf("%lld, %s() = %4.4lld",
+            printf("%llx, %s() = %4.4llx",
                    (long long int)dslValue->moduleId,
                    dslValue->variableScriptName.cStr(),
                    (long long int)dslValue->location);
@@ -133,7 +133,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             printf("\t&%s", dslValue->variableName.cStr());
             break;
         case DCS:
-            printf("\t&%s[%ld]", dslValue->variableName.cStr(), (long)dslValue->iValue);
+            printf("\t&%s[%llx]", dslValue->variableName.cStr(), (long long int)dslValue->iValue);
             break;
         case PCV:
             printf("\t%s[", dslValue->variableName.cStr());
@@ -144,10 +144,10 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             printf("\t%s\t;var %s", dslValue->variableName.cStr(), dslValue->variableName.cStr());
             break;
         case INL: case DEL:
-            printf("\t%s\t;param[BP+%ld]", dslValue->variableName.cStr(), (long)dslValue->operand);
+            printf("\t%s\t;param[BP+%llx]", dslValue->variableName.cStr(), (long long int)dslValue->operand);
             break;
         case JTB:
-            printf("\tend:%4.4lld, ", (long long int)dslValue->location);
+            printf("\tend:%4.4llx, ", (long long int)dslValue->location);
             for (int64_t ii = 0; ii < dslValue->cases.Count(); ++ii)
             {
                 DslValue *caseValue = dslValue->cases[ii];
@@ -160,7 +160,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
                     printf("case ");
                     caseValue->Print(true);
                 }
-                printf(":%4.4lld", (long long int)caseValue->location);
+                printf(":%4.4llx", (long long int)caseValue->location);
                 if ( ii + 1 < dslValue->cases.Count() )
                 {
                     printf(", ");
@@ -179,7 +179,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             break;
         case JIF: case JIT:
         case JMP: case JSR:
-            printf("\t%4.4ld", (long)dslValue->location);
+            printf("\t%4.4llx", (long long int)dslValue->location);
             break;
     }
     if (newline)
@@ -1270,12 +1270,13 @@ void CPU::ProcessJumpTable(DslValue *dslValue)
     --top;
 }
 
-/// \desc Gets the next integer value from the input IL vyte stream.
+/// \desc Gets the next integer value from the input IL byte stream.
+/// \param input Reference to a List<byte> that contains the byte stream.
 /// \param position Reference to the position position within the input stream.
-int64_t CPU::GetInt(int64_t &position)
+int64_t CPU::GetInt(List<Byte> &input, int64_t &position)
 {
     int64_t value = 0;
-    Byte len = IL.get(position++);
+    Byte len = input.get(position++);
     //positive values < 128 are stored as a single byte as these values
     //can be detected without a count.
     if ( len < 128 )
@@ -1287,79 +1288,84 @@ int64_t CPU::GetInt(int64_t &position)
     while( 0 < len--)
     {
         value <<= 8;
-        value |= IL.get(position++);
+        value |= input.get(position++);
     }
 
     return value;
 }
 
 /// \desc Gets the next double from the input IL byte stream.
+/// \param input Reference to a List<byte> that contains the byte stream.
 /// \param position Reference to the position position within the input stream.
-double CPU::GetDouble(int64_t position)
+double CPU::GetDouble(List<Byte> &input, int64_t position)
 {
     double value;
     Byte *p1 = (Byte *)&value;
     for(int64_t ii=0; ii<sizeof(double); ++ii)
     {
-        *p1++ = IL[position++];
+        *p1++ = input[position++];
     }
 
     return value;
 }
 
 /// \desc Gets the next string from the input IL byte stream.
+/// \param input Reference to a List<byte> that contains the byte stream.
 /// \param position Reference to the position position within the input stream.
 /// \param u8String Pointer to the string to be filled in with the decoded characters.
-void CPU::GetString(int64_t &position, U8String *u8String)
+void CPU::GetString(List<Byte> &input, int64_t &position, U8String *u8String)
 {
     u8chr ch;
     int64_t e;
-    int64_t length = GetInt(position);
-    Byte *pIn = (Byte *)&IL.Array()[position];
+    int64_t length = GetInt(input, position);
+    Byte *current = (Byte *)&input.Array()[position];
+    Byte *pIn = current;
     for(int64_t ii=0; ii < length; ++ii)
     {
         pIn = utf8_decode(pIn, &ch, &e);
         u8String->push_back(ch);
     }
+    position += (int64_t)pIn - (int64_t)current;
 }
 
 /// \desc Gets the next value from the input list of bytes.
+/// \param input Reference to a List<byte> that contains the byte stream.
 /// \param position Current position in the input list.
 /// \param dslValue Returns value.
-void CPU::GetValue(int64_t &position, DslValue *dslValue)
+void CPU::GetValue(List<Byte> &input, int64_t &position, DslValue *dslValue)
 {
-    int64_t typeCode = GetInt(position);
+    int64_t typeCode = GetInt(input, position);
     switch( typeCode )
     {
         default:
             break;
         case 1:
         {
-            int64_t count = GetInt(position);
+            int64_t count = GetInt(input, position);
             for(int64_t ii=0; ii<count; ++ii)
             {
                 auto *key = new U8String();
                 auto *elementDslValue = new DslValue();
-                GetString(position, key);
-                GetValue(position, elementDslValue);
+                GetString(input, position, key);
+                GetValue(input, position, elementDslValue);
                 dslValue->indexes.Set(key, (void *)elementDslValue);
             }
             break;
         }
         case 2:
-            dslValue->iValue = GetInt(position);
+            dslValue->iValue = GetInt(input, position);
             break;
         case 3:
-            dslValue->dValue = GetDouble(position);
+            dslValue->dValue = GetDouble(input, position);
             break;
         case 4:
-            dslValue->cValue = GetInt(position);
+            dslValue->cValue = GetInt(input, position);
             break;
         case 5:
-            GetString(position, &dslValue->sValue);
+            GetString(input, position, &dslValue->sValue);
             break;
         case 6:
-            dslValue->bValue = GetInt(position);
+            dslValue->bValue = GetInt(input, position);
             break;
     }
 }
@@ -1372,6 +1378,8 @@ void CPU::DeSerialize()
 
     int64_t position = 0;
     int64_t lastModId = 1;
+
+    program.Clear();
 
     while(position < IL.Count() )
     {
@@ -1388,63 +1396,61 @@ void CPU::DeSerialize()
             case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
                 break;
             case PVA: case PSV: case PSL: case JBF: case PCV:
-                dslValue->operand = GetInt(position);
+                dslValue->operand = GetInt(IL, position);
                 break;
             case JIF: case JIT:
-                dslValue->operand = GetInt(position);
-                dslValue->location = GetInt(position);
-                dslValue->bValue = GetInt(position);
+                dslValue->operand = GetInt(IL, position);
+                dslValue->location = GetInt(IL, position);
+                dslValue->bValue = GetInt(IL, position);
                 break;
             case JMP: case JSR:
-                dslValue->location = GetInt(position);
+                dslValue->location = GetInt(IL, position);
                 break;
             case EFI:
-                dslValue->operand = GetInt(position);
-                dslValue->location = GetInt(position);
+                dslValue->operand = GetInt(IL, position);
+                dslValue->location = GetInt(IL, position);
                 break;
             case DEF: case PSI:
-                GetValue(position, dslValue);
+                GetValue(IL, position, dslValue);
                 break;
             case JTB:
             {
-                int64_t count = GetInt(position);
+                int64_t count = GetInt(IL, position);
                 for (int ii = 0; ii < count; ++ii)
                 {
                     auto *caseValue = new DslValue();
-                    GetValue(position, caseValue);
-                    if (GetInt(position) == 1)
+                    GetValue(IL, position, caseValue);
+                    if (GetInt(IL, position) == 1)
                     {
                         caseValue->type = DEFAULT;
                     }
-                    caseValue->operand = GetInt(position);
-                    caseValue->location = GetInt(position);
+                    caseValue->operand = GetInt(IL, position);
+                    caseValue->location = GetInt(IL, position);
                     dslValue->cases.push_back(caseValue);
                 }
                 break;
             }
             case DCS:
-                dslValue->operand = GetInt(position);
-                dslValue->iValue = GetInt(position);
+                dslValue->operand = GetInt(IL, position);
+                dslValue->iValue = GetInt(IL, position);
                 break;
             case CID:
-                lastModId = GetInt(position);
+                lastModId = GetInt(IL, position);
                 dslValue->moduleId = lastModId;
                 break;
-        }
-
-        if ( debugMode )
-        {
-            GetString(position, &dslValue->variableName);
-            GetString(position, &dslValue->variableScriptName);
         }
 
         program.push_back(dslValue);
     }
 }
 
-bool CPU::Init(bool mode, U8String *ilFile)
+/// \desc Reads the IL file and translates it into an internal format ready to be run by the runtime.
+/// \param ilFile Pointer to a u8String containing the full path name to the program file.
+/// \param symFile Pointer to a u8String containing the full path name to the symbol file. If empty
+///                then no symbol file is loaded.
+/// \returns True if successful or false if an error occurs.
+bool CPU::Init(U8String *ilFile, U8String *symFile)
 {
-    debugMode = mode;
     IL.Clear();
     if ( !IL.fread(ilFile->cStr()) )
     {
@@ -1452,6 +1458,41 @@ bool CPU::Init(bool mode, U8String *ilFile)
     }
 
     DeSerialize();
+
+    if ( symFile->Count() > 0 )
+    {
+        List<Byte> symbols = {};
+        if ( !symbols.fread(symFile->cStr()))
+        {
+            PrintIssue(4006, true, false, "Can't read symbol file %s", symFile->cStr());
+            return false;
+        }
+        int64_t position = 0;
+        while( position < symbols.Count() )
+        {
+            int64_t addr = GetInt(symbols, position);
+            GetString(symbols, position, &program[addr]->variableName);
+            GetString(symbols, position, &program[addr]->variableScriptName);
+        }
+    }
+    else
+    {
+        for(int ii=0; ii<program.Count(); ++ii)
+        {
+            switch( program[ii]->opcode )
+            {
+                case DEF: case DFL: case EFI:
+                case PVA: case DCS: case PCV:
+                case DEC: case INC:
+                case INL: case DEL: case PSV:
+                case SAV: case SVL: case PSL:
+                case PSP:
+                    program[ii]->variableName.printf((char *)"%llx", (long long int)program[ii]->operand);
+                default:
+                    break;
+            }
+        }
+    }
 
     return true;
 }

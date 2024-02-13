@@ -14,8 +14,6 @@
 #include <iostream>
 #include <unistd.h>
 
-bool debugMode = false;
-
 /// \desc array of token names arranged in ID order used as debug aid to display a token _n
 /// in error and warning messages.
 const char *tokenNames[] =
@@ -180,6 +178,8 @@ enum CMD_ARGS
     , TraceZero      = 17
     , TraceOne       = 18
     , OutputFile     = 19
+    , Assembly       = 20
+    , SymbolFileName = 21
 };
 
 /// \desc parses the input string and returns the command line argument.
@@ -201,6 +201,12 @@ CMD_ARGS GetCommand(char *arg)
     }
     switch( arg[1] )
     {
+        case 'a':
+        case 'A':
+            return Assembly;
+        case 's':
+        case 'S':
+            return SymbolFileName;
         case 'd':
         case 'D':
             if (len < 3)
@@ -335,7 +341,11 @@ void Help()
     printf("-w1     Ignore informational warnings.\n");
     printf("-w2     Show all warnings.\n");
     printf("-w3     Warnings are treated as errors. Default option.\n");
-    printf("-o name Set the name of the output program file.");
+    printf("-a      Show disassembly.\n");
+    printf("-o name Set output program file, Default is output.il\n");
+    printf("-s name Set output symbol file, needed for debugger, default output.sym. Setting the\n");
+    printf("        symbol file to "" will prevent it from being written. This is commonly known as\n");
+    printf("        release mode.\n");
 }
 
 /// \desc Gets the file name from the file path name.
@@ -551,14 +561,29 @@ void Serialize(List<Byte> &output)
                 AddInt(output, dslValue->moduleId);
                 break;
         }
-        if ( debugMode )
-        {
-            AddString(output, &dslValue->variableName);
-            AddString(output, &dslValue->variableScriptName);
-        }
     }
 }
 
+/// \desc Writes out the symbol file needed for debugging.
+bool WriteSymbols()
+{
+    List<Byte> symbols;
+
+    for(int64_t ii=0; ii<program.Count(); ++ii)
+    {
+        if ( program[ii]->variableName.IsEmpty() && program[ii]->variableScriptName.IsEmpty()  )
+        {
+            continue;
+        }
+        AddInt(symbols, ii);
+        AddString(symbols, &program[ii]->variableName);
+        AddString(symbols, &program[ii]->variableScriptName);
+    }
+
+    return symbols.fwrite(symbolFile.cStr());
+}
+
+/// \desc Entry point for the DSL compiler.
 int main(int argc, char *argv[])
 {
     printf("DSL Version 0.9.0 (Alpha)\n");
@@ -578,9 +603,11 @@ int main(int argc, char *argv[])
     traceInfoLevel = 0;
 
     int64_t runLevel = 0;
-    int64_t displayLevel = 0;
+    int64_t displayLevel    = 0;
+    bool    displayAssembly = false;
 
     outputFile.CopyFromCString("output.il");
+    symbolFile.CopyFromCString("output.sym");
 
     for(int ii=1; ii<argc; ++ii)
     {
@@ -637,6 +664,15 @@ int main(int argc, char *argv[])
                 ++ii;
                 outputFile.CopyFromCString(argv[ii]);
                 break;
+            case SymbolFileName:
+                if ( ii + 1 < argc )
+                {
+                    Help();
+                    return -6;
+                }
+                ++ii;
+                symbolFile.CopyFromCString(argv[ii]);
+                break;
             case ParserZero:
                 parserInfoLevel = 0;
                 break;
@@ -661,6 +697,9 @@ int main(int argc, char *argv[])
             case TraceOne:
                 traceInfoLevel = 1;
                 break;
+            case Assembly:
+                displayAssembly = true;
+                break;
         }
     }
 
@@ -669,6 +708,10 @@ int main(int argc, char *argv[])
         printf("No Files to compile.\n");
         return -2;
     }
+
+    systemEventNames.push_back(new U8String(""));
+    systemEventNames.push_back(new U8String("OnError"));
+    systemEventNames.push_back(new U8String("OnTick"));
 
     auto *lexer = new Lexer();
     Lexer::Initialize();
@@ -748,15 +791,22 @@ int main(int argc, char *argv[])
         if ( !ilOutputProgram.fwrite(outputFile.cStr()) )
         {
             PrintIssue(4005, true, false, "Can't write compiled program to output file %s", outputFile.cStr());
-            return -4;
+            return -5;
         }
+        WriteSymbols();
     }
 
     if ( runLevel == 0 )
     {
         auto *cpu = new CPU();
 
-        cpu->Init(false, &outputFile);
+        cpu->Init(&outputFile, &symbolFile);
+
+        if ( displayAssembly )
+        {
+            printf("\n<<<< IL Assembly Code >>>>\n");
+            CPU::DisplayASMCodeLines();
+        }
 
         double start = (double)clock()/(double)CLOCKS_PER_SEC;
         cpu->Run();
@@ -774,6 +824,15 @@ int main(int argc, char *argv[])
                 break;
         }
 
+        delete cpu;
+    }
+    else if ( displayAssembly )
+    {
+        //Assembly requested without running the program requested.
+        auto *cpu = new CPU();
+        cpu->Init(&outputFile, &symbolFile);
+        printf("\n<<<< IL Assembly Code >>>>\n");
+        CPU::DisplayASMCodeLines();
         delete cpu;
     }
 
