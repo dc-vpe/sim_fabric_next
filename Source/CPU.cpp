@@ -124,55 +124,10 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             break;
         case EFI:
             putchar('\t');
-            switch((SystemErrorHandlers)dslValue->operand)
-            {
-                case ON_NONE:
-                    printf("none");
-                    break;
-                case ON_ERROR:
-                    printf("OnError() = ");
-                    break;
-                case ON_KEY_DOWN:
-                    printf("OnKeyDown() = ");
-                    break;
-                case ON_KEY_UP:
-                    printf("OnKeyUp() = ");
-                    break;
-                case ON_LEFT_DRAG:
-                    printf("OnLeftDrag() = ");
-                    break;
-                case ON_LEFT_UP:
-                    printf("OnLeftUp() = ");
-                    break;
-                case ON_LEFT_DOWN:
-                    printf("OnLeftDown() = ");
-                    break;
-                case ON_RIGHT_DRAG:
-                    printf("OnRightDrag() = ");
-                    break;
-                case ON_RIGHT_UP:
-                    printf("OnRightUp() = ");
-                    break;
-                case ON_RIGHT_DOWN:
-                    printf("OnRightDown() = ");
-                    break;
-                case ON_TICK:
-                    printf("OnTick() = ");
-                    break;
-                case ON_USER:
-                    printf("%s() = ", dslValue->variableScriptName.cStr());
-                    break;
-            }
-            if ( dslValue->moduleId > 0 )
-            {
-                printf("Module = %lld, %s() = %4.4lld",
-                       (long long int)dslValue->moduleId, dslValue->variableScriptName.cStr(),
-                       (long long int)dslValue->location);
-            }
-            else
-            {
-                printf("none");
-            }
+            printf("%lld, %s() = %4.4lld",
+                   (long long int)dslValue->moduleId,
+                   dslValue->variableScriptName.cStr(),
+                   (long long int)dslValue->location);
             break;
         case PVA:
             printf("\t&%s", dslValue->variableName.cStr());
@@ -1271,7 +1226,7 @@ void CPU::JumpToSubroutine(DslValue *dslValue)
     int64_t saved = BP;
     BP = top - totalParams;
     PC = dslValue->location;
-    RunNoTrace();
+    RunNoTrace();   //BUGBUG: no way to run traced when calling a script function
     A->SAV(&params[top]);
     --top;
     BP = saved;
@@ -1315,7 +1270,193 @@ void CPU::ProcessJumpTable(DslValue *dslValue)
     --top;
 }
 
-void CPU::Run()
+/// \desc Gets the next integer value from the input IL vyte stream.
+/// \param position Reference to the position position within the input stream.
+int64_t CPU::GetInt(int64_t &position)
+{
+    int64_t value = 0;
+    Byte len = IL.get(position++);
+    //positive values < 128 are stored as a single byte as these values
+    //can be detected without a count.
+    if ( len < 128 )
+    {
+        return (int64_t) len;
+    }
+
+    len &= 0x7f; //msb is not used as max length is 8
+    while( 0 < len--)
+    {
+        value <<= 8;
+        value |= IL.get(position++);
+    }
+
+    return value;
+}
+
+/// \desc Gets the next double from the input IL byte stream.
+/// \param position Reference to the position position within the input stream.
+double CPU::GetDouble(int64_t position)
+{
+    double value;
+    Byte *p1 = (Byte *)&value;
+    for(int64_t ii=0; ii<sizeof(double); ++ii)
+    {
+        *p1++ = IL[position++];
+    }
+
+    return value;
+}
+
+/// \desc Gets the next string from the input IL byte stream.
+/// \param position Reference to the position position within the input stream.
+/// \param u8String Pointer to the string to be filled in with the decoded characters.
+void CPU::GetString(int64_t &position, U8String *u8String)
+{
+    u8chr ch;
+    int64_t e;
+    int64_t length = GetInt(position);
+    Byte *pIn = (Byte *)&IL.Array()[position];
+    for(int64_t ii=0; ii < length; ++ii)
+    {
+        pIn = utf8_decode(pIn, &ch, &e);
+        u8String->push_back(ch);
+    }
+}
+
+/// \desc Gets the next value from the input list of bytes.
+/// \param position Current position in the input list.
+/// \param dslValue Returns value.
+void CPU::GetValue(int64_t &position, DslValue *dslValue)
+{
+    int64_t typeCode = GetInt(position);
+    switch( typeCode )
+    {
+        default:
+            break;
+        case 1:
+        {
+            int64_t count = GetInt(position);
+            for(int64_t ii=0; ii<count; ++ii)
+            {
+                auto *key = new U8String();
+                auto *elementDslValue = new DslValue();
+                GetString(position, key);
+                GetValue(position, elementDslValue);
+                dslValue->indexes.Set(key, (void *)elementDslValue);
+            }
+            break;
+        }
+        case 2:
+            dslValue->iValue = GetInt(position);
+            break;
+        case 3:
+            dslValue->dValue = GetDouble(position);
+            break;
+        case 4:
+            dslValue->cValue = GetInt(position);
+            break;
+        case 5:
+            GetString(position, &dslValue->sValue);
+            break;
+        case 6:
+            dslValue->bValue = GetInt(position);
+            break;
+    }
+}
+
+/// \desc Translates the IL bytes into a runnable program.
+///       A program that can be run is a set of dslValues.
+void CPU::DeSerialize()
+{
+    DslValue *dslValue;
+
+    int64_t position = 0;
+    int64_t lastModId = 1;
+
+    while(position < IL.Count() )
+    {
+        auto opcode = (OPCODES)IL.get(position++);
+        dslValue = new DslValue(opcode);
+        dslValue->moduleId = lastModId;
+        switch( opcode )
+        {
+            case END: case NOP: case PSP: case RFE:
+            case SLV: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
+            case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
+            case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
+            case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT: case NEG:
+            case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
+                break;
+            case PVA: case PSV: case PSL: case JBF: case PCV:
+                dslValue->operand = GetInt(position);
+                break;
+            case JIF: case JIT:
+                dslValue->operand = GetInt(position);
+                dslValue->location = GetInt(position);
+                dslValue->bValue = GetInt(position);
+                break;
+            case JMP: case JSR:
+                dslValue->location = GetInt(position);
+                break;
+            case EFI:
+                dslValue->operand = GetInt(position);
+                dslValue->location = GetInt(position);
+                break;
+            case DEF: case PSI:
+                GetValue(position, dslValue);
+                break;
+            case JTB:
+            {
+                int64_t count = GetInt(position);
+                for (int ii = 0; ii < count; ++ii)
+                {
+                    auto *caseValue = new DslValue();
+                    GetValue(position, caseValue);
+                    if (GetInt(position) == 1)
+                    {
+                        caseValue->type = DEFAULT;
+                    }
+                    caseValue->operand = GetInt(position);
+                    caseValue->location = GetInt(position);
+                    dslValue->cases.push_back(caseValue);
+                }
+                break;
+            }
+            case DCS:
+                dslValue->operand = GetInt(position);
+                dslValue->iValue = GetInt(position);
+                break;
+            case CID:
+                lastModId = GetInt(position);
+                dslValue->moduleId = lastModId;
+                break;
+        }
+
+        if ( debugMode )
+        {
+            GetString(position, &dslValue->variableName);
+            GetString(position, &dslValue->variableScriptName);
+        }
+
+        program.push_back(dslValue);
+    }
+}
+
+bool CPU::Init(bool mode, U8String *ilFile)
+{
+    debugMode = mode;
+    IL.Clear();
+    if ( !IL.fread(ilFile->cStr()) )
+    {
+        return false;
+    }
+
+    DeSerialize();
+
+    return true;
+}
+
+bool CPU::Run()
 {
     //error handles need setup
     if ( traceInfoLevel == 1 )
@@ -1326,6 +1467,8 @@ void CPU::Run()
     {
         RunNoTrace();
     }
+
+    return true;
 }
 
 void CPU::ExtendCollection(DslValue *collection, int64_t newEnd)
@@ -1399,22 +1542,52 @@ void CPU::PushVariableAddress(DslValue *variable)
     params[++top].elementAddress = value;
 }
 
+int64_t CPU::GetEventLocation(SystemErrorHandlers errorHandler, int64_t moduleId)
+{
+    switch( errorHandler )
+    {
+        case ON_NONE:
+            break;
+        case ON_ERROR:
+            break;
+        case ON_KEY_DOWN:
+            break;
+        case ON_KEY_UP:
+            break;
+        case ON_LEFT_DRAG:
+            break;
+        case ON_LEFT_UP:
+            break;
+        case ON_LEFT_DOWN:
+            break;
+        case ON_RIGHT_DRAG:
+            break;
+        case ON_RIGHT_UP:
+            break;
+        case ON_RIGHT_DOWN:
+            break;
+        case ON_TICK:
+            break;
+    }
+
+//    DslValue *onError = program[base + (10 * (instruction->moduleId-1))];
+//    handlerLocation = onError->location;
+
+    return 0;
+}
+
 /// \desc calls the on error handler if one exists.
 void CPU::JumpToOnErrorHandler()
 {
     auto totalParams = params[top].iValue;
 
-    int64_t handlerLocation = 0;
-
     DslValue *instruction = program[PC];
 
     int64_t base = program[0]->location;
 
-    DslValue *onError = program[base + (10 * (instruction->moduleId-1))];
+    int64_t onErrorLocation = GetEventLocation(ON_ERROR, instruction->moduleId);
 
-    handlerLocation = onError->location;
-
-    if ( handlerLocation == 0 )
+    if ( onErrorLocation == 0 )
     {
         printf("%s", szErrorMsg.cStr());
         PC = program.Count();
@@ -1424,7 +1597,7 @@ void CPU::JumpToOnErrorHandler()
     int64_t pcReturn = PC;
     int64_t saved = BP;
     BP = top - totalParams;
-    PC = handlerLocation;
+    PC = onErrorLocation;
 
     while(PC < program[0]->location )
     {
@@ -1469,7 +1642,7 @@ void CPU::JumpToOnErrorHandler()
 /// \desc calls the on error handler if one exists.
 void CPU::JumpToOnTick()
 {
-    if ( onTickEvent == nullptr )
+    if ( onTickEvent == 0 )
     {
         return;
     }
@@ -1484,7 +1657,7 @@ void CPU::JumpToOnTick()
     List<DslValue> pSave;  //function call parameters stack
     int64_t pcReturn = PC;
     int64_t sBP = BP;
-    PC = onTickEvent->location;
+    PC = onTickEvent;
     int64_t stop = top;
     pSave.CopyFrom(&params);
 
@@ -1625,11 +1798,9 @@ bool CPU::RunInstruction(DslValue *dslValue)
             break;
         case INC:
             program[dslValue->operand]->INC();
-            //params[++top].LiteCopy(program[dslValue->operand]);
             break;
         case DEC:
             program[dslValue->operand]->DEC();
-            //params[++top].LiteCopy(program[dslValue->operand]);
             break;
         case NOT:
             params[top].NOT();
@@ -1762,6 +1933,8 @@ void CPU::RunTrace()
             continue;
         }
 
+        JumpToOnTick();
+
         if ( !RunInstruction(instruction) )
         {
             break;
@@ -1870,8 +2043,7 @@ void CPU::SetTickEvent(DslValue *dslValue)
     else
     {
         lastModuleId = dslValue->moduleId;
-        eventBase = program[0]->location + (10 * (lastModuleId-1));
-        onTickEvent = program[eventBase + (SystemErrorHandlers ::ON_TICK-1)];
+        onTickEvent = GetEventLocation(ON_TICK, dslValue->moduleId);
     }
 }
 
@@ -1885,9 +2057,10 @@ CPU::CPU()
     params.Clear();
     errorCode = 0;
     nextTick = clock() + TICKS_PER_SECOND;
-    lastModuleId = program[0]->moduleId;
-    eventBase = program[0]->location + (10 * (lastModuleId-1));
-    onTickEvent = program[eventBase + (SystemErrorHandlers ::ON_TICK-1)];
+    lastModuleId = 1;
+    onTickEvent = 0;
+    IL.Clear();
+    instructions.Clear();
 }
 
 #pragma clang diagnostic pop

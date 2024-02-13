@@ -173,13 +173,10 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             value->operand = token->value->operand; //1 though 9 are system types 10 + are user types.
             value->moduleId = token->value->moduleId;
             value->location = 0;
-            if ( token->value->moduleId > 0 )
-            {
-                funInfo = functions.Get(token->identifier);
-                value->variableName.CopyFrom(&funInfo->value->variableName);
-                value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
-                value->location = funInfo->value->location;
-            }
+            funInfo = functions.Get(token->identifier);
+            value->variableName.CopyFrom(&funInfo->value->variableName);
+            value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
+            value->location = funInfo->value->location;
             if ( !program.push_back(value) )
             {
                 return nullptr;
@@ -213,6 +210,7 @@ void Parser::PushValue(Token *token)
 
 /// \desc Creates a variable definition within the output IL and sets the tokens operand 1 to the location
 ///       of the variable within the programs IL.
+/// \param token Token containing the information about the variable.
 void Parser::CreateVariable(Token *token)
 {
     auto *var = new DslValue(token->value);
@@ -223,7 +221,10 @@ void Parser::CreateVariable(Token *token)
     OutputCode(token, DEF);
 }
 
-Token *Parser::CreateOperation(Token *token)
+/// \desc Writes out an algebraic, conversion or logical instruction.
+/// \param Token containing the information to be used to construct the instruction.
+/// \returns The
+void Parser::CreateOperation(Token *token)
 {
     switch( token->type )
     {
@@ -260,24 +261,21 @@ Token *Parser::CreateOperation(Token *token)
         case CAST_TO_STR: OutputCode(token, CTS); break;
         case CAST_TO_BOOL: OutputCode(token, CTB); break;
     }
-    return token;
 }
 
-void Parser::SetEventFunctionInfo(int64_t modId, Token *token, U8String *handlerFunction, SystemErrorHandlers sysErrHandler)
+/// \desc Adds an event function instruc
+
+void Parser::AddEventFunction(int64_t modId, Token *token, U8String *handlerFunction, SystemErrorHandlers sysErrHandler)
 {
+    if ( handlerFunction->Count() == 0 )
+    {
+        return;
+    }
+
     auto *ef = new Token(new DslValue(EFI));
-
     ef->value->operand = (int64_t)sysErrHandler;
-
-    if (handlerFunction->Count() > 0)
-    {
-        ef->value->moduleId = modId;
-        ef->identifier->CopyFrom(handlerFunction);
-    }
-    else
-    {
-        ef->value->moduleId = 0;
-    }
+    ef->value->moduleId = modId;
+    ef->identifier->CopyFrom(handlerFunction);
 
     OutputCode(ef, EFI);
 }
@@ -322,51 +320,36 @@ bool Parser::Parse()
     FixUpFunctionCalls();
     FixUpJumpsToEnd();
 
-    auto *ef = new Token(new DslValue(EFI));
-
     for(int ii=0; ii<modules.Count(); ++ii)
     {
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onError,
-                             SystemErrorHandlers::ON_ERROR);
+        //Add any system events.
+        for(int tt=1; tt<modules[ii]->systemEvents.Count(); ++tt)
+        {
+            if ( modules[ii]->systemEvents.Count() > 0 )
+            {
+                Token *funInfo = functions.Get(&modules[ii]->systemEvents[tt]);
+                auto *ef = new Token(funInfo);
+                ef->value->operand = tt;
+                ef->value->moduleId = ii+1;
+                OutputCode(ef, EFI);
+            }
+        }
 
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onKeyDown,
-                             SystemErrorHandlers::ON_KEY_DOWN);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onKeyUp,
-                             SystemErrorHandlers::ON_KEY_UP);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onLeftDrag,
-                             SystemErrorHandlers::ON_LEFT_DRAG);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onLeftUp,
-                             SystemErrorHandlers::ON_LEFT_UP);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onLeftDown,
-                             SystemErrorHandlers::ON_LEFT_DOWN);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onRightDrag,
-                             SystemErrorHandlers::ON_RIGHT_DRAG);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onRightUp,
-                             SystemErrorHandlers::ON_RIGHT_UP);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onRightDown,
-                             SystemErrorHandlers::ON_RIGHT_DOWN);
-
-        SetEventFunctionInfo(ii+1, token, &modules[ii]->onTick,
-                             SystemErrorHandlers::ON_TICK);
+        //Add any user events.
+        for(int tt=1; tt<modules[ii]->userEvents.Count(); ++tt)
+        {
+            if ( modules[ii]->userEvents.Count() > 0 )
+            {
+                Token *funInfo = functions.Get(&modules[ii]->userEvents[tt]);
+                auto *ef = new Token(funInfo);
+                ef->value->operand = tt;
+                ef->value->moduleId = ii+1;
+                OutputCode(ef, EFI);
+            }
+        }
     }
 
     program[0]->operand = program.Count(); //user events
-
-    for(int ii=0; ii<modules.Count(); ++ii)
-    {
-        for(int tt=0; tt<modules[ii]->userEvents.Count(); ++tt)
-        {
-            SetEventFunctionInfo(ii+1, token, modules[ii]->userEvents[tt],
-                                 SystemErrorHandlers::ON_USER);
-        }
-    }
 
     bool result = true;
 

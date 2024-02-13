@@ -335,7 +335,7 @@ void Help()
     printf("-w1     Ignore informational warnings.\n");
     printf("-w2     Show all warnings.\n");
     printf("-w3     Warnings are treated as errors. Default option.\n");
-    printf("-o name Set the name of the generated IL code program file.");
+    printf("-o name Set the name of the output program file.");
 }
 
 /// \desc Gets the file name from the file path name.
@@ -411,78 +411,9 @@ void AddInt(List<Byte> &output, int64_t value)
     }
 }
 
-//
-//    else if ( v < 256 )
-//    {
-//        output.push_back(1);
-//        output.push_back(v);
-//        return;
-//    }
-//    else if ( v < 65536 )
-//    {
-//        output.push_back(2);
-//        output.push_back((v >> 8) & 0xFF);
-//        output.push_back(v & 0xFF);
-//        return;
-//    }
-//    else if ( v < 16777216 )
-//    {
-//        output.push_back(3);
-//        output.push_back((v >> 16) & 0xFF);
-//        output.push_back((v >> 8) & 0xFF);
-//        output.push_back(v & 0xFF);
-//        return;
-//    }
-//    else if ( v <  4294967296)
-//    {
-//        output.push_back(4);
-//        output.push_back((v >> 24) & 0xFF);
-//        output.push_back((v >> 16) & 0xFF);
-//        output.push_back((v >> 8) & 0xFF);
-//        output.push_back(v & 0xFF);
-//        return;
-//    }
-//    else if ( v < 1099511627776 )
-//    {
-//        output.push_back(6);
-//        output.push_back((v >> 24) & 0xFF);
-//        output.push_back((v >> 16) & 0xFF);
-//        output.push_back((v >> 8) & 0xFF);
-//        output.push_back(v & 0xFF);
-//        return;
-//    }
-//    output.push_back(8);
-//    output.push_back((v >> 56) & 0xFF);
-//    output.push_back((v >> 48) & 0xFF);
-//    output.push_back((v >> 40) & 0xFF);
-//    output.push_back((v >> 32) & 0xFF);
-//    output.push_back((v >> 24) & 0xFF);
-//    output.push_back((v >> 16) & 0xFF);
-//    output.push_back((v >> 8) & 0xFF);
-//    output.push_back(v & 0xFF);
-//}
-
-int64_t GetInt(List<Byte> &input, int64_t &current)
-{
-    int64_t value = 0;
-    Byte len = input.get(current++);
-    //positive values < 128 are stored as a single byte as these values
-    //can be detected without a count.
-    if ( len < 128 )
-    {
-        return (int64_t) len;
-    }
-
-    len &= 0x7f; //msb is not used as max length is 8
-    while( 0 < len--)
-    {
-        value <<= 8;
-        value |= input.get(current++);
-    }
-
-    return value;
-}
-
+/// \desc Adds and encodes a double value into the output program bytes.
+/// \param output Output list the encoded program bytes are added to.
+/// \param u8String Pointer to the string to add to the output byte list.
 void AddDouble(List<Byte> &output, double value)
 {
     Byte *p1 = (Byte *)&value;
@@ -492,18 +423,9 @@ void AddDouble(List<Byte> &output, double value)
     }
 }
 
-double GetDouble(List<Byte> &input, int64_t position)
-{
-    double value;
-    Byte *p1 = (Byte *)&value;
-    for(int64_t ii=0; ii<sizeof(double); ++ii)
-    {
-        *p1++ = input[position++];
-    }
-
-    return value;
-}
-
+/// \desc Adds and encodes a string into the output program bytes.
+/// \param output Output list the encoded program bytes are added to.
+/// \param u8String Pointer to the string to add to the output byte list.
 void AddString(List<Byte> &output, U8String *u8String)
 {
     output.push_back(u8String->Count());
@@ -517,19 +439,6 @@ void AddString(List<Byte> &output, U8String *u8String)
         {
             output.push_back(*p++);
         }
-    }
-}
-
-void GetString(List<Byte> &input, int64_t &current, U8String *u8String)
-{
-    u8chr ch;
-    int64_t e;
-    int64_t length = GetInt(input, current);
-    Byte *pIn = (Byte *)&input.Array()[current];
-    for(int64_t ii=0; ii < length; ++ii)
-    {
-        pIn = utf8_decode(pIn, &ch, &e);
-        u8String->push_back(ch);
     }
 }
 
@@ -576,48 +485,6 @@ void AddValue(List<Byte> &output, DslValue *dslValue)
             AddInt(output, dslValue->bValue);
             break;
         default:
-            break;
-    }
-}
-
-/// \desc Gets the next value from the input list of bytes.
-/// \param input List of input bytes containing the IL program.
-/// \param position Current position in the input list.
-/// \param dslValue Returns value.
-void GetValue(List<Byte> &input, int64_t &position, DslValue *dslValue)
-{
-    int64_t typeCode = GetInt(input, position);
-    switch( typeCode )
-    {
-        default:
-            break;
-        case 1:
-        {
-            int64_t count = GetInt(input, position);
-            for(int64_t ii=0; ii<count; ++ii)
-            {
-                auto *key = new U8String();
-                auto *elementDslValue = new DslValue();
-                GetString(input, position, key);
-                GetValue(input, position, elementDslValue);
-                dslValue->indexes.Set(key, (void *)elementDslValue);
-            }
-            break;
-        }
-        case 2:
-            dslValue->iValue = GetInt(input, position);
-            break;
-        case 3:
-            dslValue->dValue = GetDouble(input, position);
-            break;
-        case 4:
-            dslValue->cValue = GetInt(input, position);
-            break;
-        case 5:
-            GetString(input, position, &dslValue->sValue);
-            break;
-        case 6:
-            dslValue->bValue = GetInt(input, position);
             break;
     }
 }
@@ -692,105 +559,6 @@ void Serialize(List<Byte> &output)
     }
 }
 
-/// \desc Translates the IL bytes into a runnable program.
-///       A program that can be run is a set of dslValues.
-/// \param input List of bytes created by the serialize function.
-void DeSerialize(List<Byte> &input)
-{
-    DslValue *dslValue;
-
-    int64_t position = 0;
-    int64_t lastModuleId = 1;
-
-    while(position < input.Count() )
-    {
-        auto opcode = (OPCODES)input.get(position++);
-        dslValue = new DslValue(opcode);
-        dslValue->moduleId = lastModuleId;
-        switch( opcode )
-        {
-            case END: case NOP: case PSP: case RFE:
-            case SLV: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
-            case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
-            case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
-            case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT: case NEG:
-            case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
-                break;
-            case PVA: case PSV: case PSL: case JBF: case PCV:
-                dslValue->operand = GetInt(input, position);
-                break;
-            case JIF: case JIT:
-                dslValue->operand = GetInt(input, position);
-                dslValue->location = GetInt(input, position);
-                dslValue->bValue = GetInt(input, position);
-                break;
-            case JMP: case JSR:
-                dslValue->location = GetInt(input, position);
-                break;
-            case EFI:
-                dslValue->operand = GetInt(input, position);
-                dslValue->location = GetInt(input, position);
-                break;
-            case DEF: case PSI:
-                GetValue(input, position, dslValue);
-                break;
-            case JTB:
-            {
-                int64_t count = GetInt(input, position);
-                for (int ii = 0; ii < count; ++ii)
-                {
-                    auto *caseValue = new DslValue();
-                    GetValue(input, position, caseValue);
-                    if (GetInt(input, position) == 1)
-                    {
-                        caseValue->type = DEFAULT;
-                    }
-                    caseValue->operand = GetInt(input, position);
-                    caseValue->location = GetInt(input, position);
-                    dslValue->cases.push_back(caseValue);
-                }
-                break;
-            }
-            case DCS:
-                dslValue->operand = GetInt(input,position);
-                dslValue->iValue = GetInt(input, position);
-                break;
-            case CID:
-                lastModuleId = GetInt(input, position);
-                dslValue->moduleId = lastModuleId;
-                break;
-        }
-
-        if ( debugMode )
-        {
-            GetString(input, position, &dslValue->variableName);
-            GetString(input, position, &dslValue->variableScriptName);
-        }
-
-        program.push_back(dslValue);
-    }
-}
-
-void WriteProgram(const char *file)
-{
-    List<Byte> output;
-
-    Serialize(output);
-
-    output.fwrite(file);
-}
-
-void ReadProgram(const char *file)
-{
-    List<Byte> input;
-
-    input.fread(file);
-
-    program.Clear();
-
-    DeSerialize(input);
-}
-
 int main(int argc, char *argv[])
 {
     printf("DSL Version 0.9.0 (Alpha)\n");
@@ -812,8 +580,7 @@ int main(int argc, char *argv[])
     int64_t runLevel = 0;
     int64_t displayLevel = 0;
 
-    char outputFile[1024];
-    strcpy(outputFile, "output.bc");
+    outputFile.CopyFromCString("output.il");
 
     for(int ii=1; ii<argc; ++ii)
     {
@@ -862,8 +629,13 @@ int main(int argc, char *argv[])
                 lexerInfoLevel = 1;
                 break;
             case OutputFile:
+                if ( ii + 1 < argc )
+                {
+                    Help();
+                    return -4;
+                }
                 ++ii;
-                strcpy(outputFile, argv[ii]);
+                outputFile.CopyFromCString(argv[ii]);
                 break;
             case ParserZero:
                 parserInfoLevel = 0;
@@ -951,6 +723,8 @@ int main(int argc, char *argv[])
 
     delete lexer;
 
+    List<Byte> ilOutputProgram = {};
+
     if ( runLevel < 2 )
     {
         auto *parser = new Parser();
@@ -968,12 +742,21 @@ int main(int argc, char *argv[])
             delete parser;
             return -3;
         }
-        WriteProgram(outputFile);
+
+        //Create the actual program.
+        Serialize(ilOutputProgram);
+        if ( !ilOutputProgram.fwrite(outputFile.cStr()) )
+        {
+            PrintIssue(4005, true, false, "Can't write compiled program to output file %s", outputFile.cStr());
+            return -4;
+        }
     }
 
     if ( runLevel == 0 )
     {
         auto *cpu = new CPU();
+
+        cpu->Init(false, &outputFile);
 
         double start = (double)clock()/(double)CLOCKS_PER_SEC;
         cpu->Run();

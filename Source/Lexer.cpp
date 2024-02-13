@@ -1070,53 +1070,40 @@ bool Lexer::DefineFunction(Token *token)
         {
             definingEvent = true;
             currentEventFunction.CopyFromCString(funBegin->identifier->cStr());
-
-            if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnError", 7))
+            bool systemEvent = false;
+            for(int ii=1; ii<systemEventNames->Count(); ++ii)
             {
-                modules[m_id - 1]->onError.CopyFromCString(funBegin->identifier->cStr());
+                if ( systemEventNames->IsEqual(&funBegin->value->variableScriptName) )
+                {
+                    if ( modules[m_id-1]->systemEvents[ii].Count() > 0 )
+                    {
+                        PrintIssue(2200, true, false,
+                                   "Event function %s for module %s already exists.",
+                                   funBegin->value->variableScriptName.cStr(), modules[m_id-1]->name.cStr());
+                        SkipToEndOfBlock(start);
+                        definingFunction = false;
+                        return false;
+                    }
+                    modules[m_id-1]->systemEvents[ii].CopyFrom(new U8String(funBegin->identifier));
+                    systemEvent = true;
+                    break;
+                }
             }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnKeyUp", 7))
+            if ( !systemEvent )
             {
-                modules[m_id - 1]->onKeyUp.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnKeyDown", 9))
-            {
-                modules[m_id - 1]->onKeyDown.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnLeftDrag", 9))
-            {
-                modules[m_id - 1]->onLeftDrag.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnLeftUp", 8))
-            {
-                modules[m_id - 1]->onLeftUp.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnLeftDown", 10))
-            {
-                modules[m_id - 1]->onLeftDown.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnRightDrag", 11))
-            {
-                modules[m_id - 1]->onRightDrag.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnRightUp", 9))
-            {
-                modules[m_id - 1]->onRightUp.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnRightDown", 11))
-            {
-                modules[m_id - 1]->onRightDown.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else if (!strncmp(funBegin->value->variableScriptName.cStr(), "OnTick", 6))
-            {
-                modules[m_id - 1]->onTick.CopyFromCString(funBegin->identifier->cStr());
-            }
-            else
-            {
-                modules[m_id - 1]->onTick.CopyFromCString(funBegin->identifier->cStr());
-                int64_t index = modules[m_id - 1]->userEvents.Count();
-                modules[m_id - 1]->userEvents.push_back(new U8String());
-                modules[m_id - 1]->userEvents[index]->CopyFrom(funBegin->identifier);
+                for(int64_t ii=0; ii<modules[m_id-1]->userEvents.Count(); ++ii)
+                {
+                    if ( modules[m_id-1]->userEvents[0].IsEqual(funBegin->identifier))
+                    {
+                        PrintIssue(2200, true, false,
+                                   "Event function %s for module %s already exists.",
+                                   funBegin->value->variableScriptName.cStr(), modules[m_id-1]->name.cStr());
+                        SkipToEndOfBlock(start);
+                        definingFunction = false;
+                        return false;
+                    }
+                }
+                modules[m_id-1]->userEvents.push_back(U8String(funBegin->identifier));
             }
         }
     }

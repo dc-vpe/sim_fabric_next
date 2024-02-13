@@ -25,6 +25,25 @@ public:
         array = nullptr;
     }
 
+    /// desc Allows static declaration.
+    explicit List(Type type)
+    {
+        size  = 0;
+        count = 0;
+        array = nullptr;
+        push_back(type);
+    }
+
+    explicit  List(Type t1, Type t2, Type t3)
+    {
+        size  = 0;
+        count = 0;
+        array = nullptr;
+        push_back(t1);
+        push_back(t2);
+        push_back(t3);
+    }
+
     /// \desc Frees the memory used by the list.
     ~List()
     {
@@ -121,19 +140,6 @@ public:
         }
     }
 
-    /// \desc Swaps the last two elements.
-    /// \remark If the list contains less than two elements it remains unchanged.
-    [[maybe_unused]] void swap_back()
-    {
-        if ( count > 1 )
-        {
-            Type first = pop_back();
-            Type second = pop_back();
-            push_back(second);
-            push_back(first);
-        }
-    }
-
     /// Copies the Src list to this one.
     /// \param src Pointer to the source list.
     void CopyFrom(List<Type> *src)
@@ -156,7 +162,7 @@ public:
     /// \param file Full path file name of the file to read into the list.
     /// \returns True if successful, false if an error occurs. If an error
     ///          occurs errno is set to the error code and can be written
-    ///          with perror().
+    ///          with the function perror().
     bool fwrite(const char *file)
     {
         FILE *fp = fopen(file, "wb+");
@@ -164,7 +170,7 @@ public:
         {
             return false;
         }
-        int64_t len = Count();;
+        int64_t len = Count();
         if ( ::fwrite(array, sizeof(Type), len, fp) != len )
         {
             fclose(fp);
@@ -181,7 +187,7 @@ public:
     /// \returns True if successful, false if an error occurs. If an error
     ///          occurs errno is set to the error code and can be written
     ///          with perror().
-    bool fread(const char *file)
+    [[maybe_unused]] bool fread(const char *file)
     {
         FILE *fp = fopen(file, "rb");
         if ( fp == nullptr )
