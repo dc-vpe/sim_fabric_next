@@ -16,16 +16,16 @@ enum SystemErrorHandlers
 {
     ON_NONE = 0,
     ON_ERROR = 1,
-    ON_KEY_DOWN = 2,
-    ON_KEY_UP = 3,
-    ON_LEFT_DRAG = 4,
-    ON_LEFT_UP = 5,
-    ON_LEFT_DOWN = 6,
-    ON_RIGHT_DRAG = 7,
-    ON_RIGHT_UP = 8,
-    ON_RIGHT_DOWN = 9,
-    ON_TICK = 10,
-    ON_USER = 11
+    ON_TICK = 2,
+    //The following events are reserved in case the design evolves to require their functionality.
+    ON_KEY_DOWN = 3,
+    ON_KEY_UP = 4,
+    ON_LEFT_DRAG = 5,
+    ON_LEFT_UP = 6,
+    ON_LEFT_DOWN = 7,
+    ON_RIGHT_DRAG = 8,
+    ON_RIGHT_UP = 9,
+    ON_RIGHT_DOWN = 10
 };
 
 
@@ -90,5 +90,11 @@ extern const char *standardFunctionNames[];
 
 /// \desc Number of required parameters for build in functions.
 extern const int64_t standardFunctionParams[];
+
+/// \desc List of currently supported run time system.
+extern U8String systemEventNames[];
+
+/// \desc Full path name of the output file to generate.
+extern U8String outputFile;
 
 #endif //DSL_CPP_PARSE_DATA_H

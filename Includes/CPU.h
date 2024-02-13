@@ -41,6 +41,51 @@ public:
     /// \desc Displays the lines of code in the program.
     static void DisplayASMCodeLines();
 
+    /// \desc Initializes the CPU to run the program.
+    /// \param mode If True the program has been compiled in debug mode and contains debug information.
+    /// \param ilFile Pointer to a u8String containing the full path name to the compiled il program.
+    bool Init(bool mode, U8String *ilFile);
+
+    /// \desc Runs the compiled program.
+    bool Run();
+
+    /// \desc Displays a CPU instruction, used for testing and debugging.
+    /// \param addr address of the instruction to show.
+    static int64_t DisplayASMCodeLine(int64_t addr, bool newline = true);
+
+    /// \desc built in array of function pointers. Order is same as lexers built in function names list.
+    typedef void (CPU::*method_function)();
+
+private:
+
+    int64_t        BP; //stack frame register for local variables.
+    int64_t        PC; //program instruction counter.
+    Stack<int64_t> SP{};    //Call and return stack.
+    List<DslValue> params;  //function call parameters stack
+    int64_t        top;   //top of params stack
+    DslValue       *A;  //Temporary A register storage.
+    long           nextTick; //next on text time
+    int64_t        lastModuleId; //last module id changes with the instruction being executed
+    int64_t        onTickEvent; //tracks the last tick event set, this changes when the instructions module changes.
+    bool           debugMode; //If true the program is compiled with debug information.
+
+
+    List<Byte>          IL; //Bytes that make up the program.
+    List<DslValue *>    instructions;   //The actual instructions that are run.
+
+    static int64_t  errorCode;
+    static U8String szErrorMsg;
+    List<DslValue>  eventHandlers; //Event function information in module id order.
+
+    static bool ReadFile(U8String *file, U8String *output);
+    static void Error(DslValue *error);
+    static bool IsMatch(u8chr ch, u8chr ex, bool caseLessCompare);
+    static u8chr GetExChar(U8String *expression, int64_t &offset);
+    static int64_t Find(U8String *search, U8String *expression, int64_t start);
+    static void Sub(U8String *search, U8String *result, int64_t start, int64_t length);
+    static int64_t ExpressionLength(U8String *expression);
+    void SetTickEvent(DslValue *dslValue);
+
     /// \desc Calls one of the standard built in functions.
     void JumpToBuiltInFunction(DslValue *dslValue);
 
@@ -52,8 +97,29 @@ public:
     /// \param dslValue Pointer to the index containing the JTB opcode.
     void ProcessJumpTable(DslValue *dslValue);
 
-    /// \desc Runs the compiled program.
-    void Run();
+    /// \desc Gets the next integer value from the input IL vyte stream.
+    /// \param position Reference to the position position within the input stream.
+    int64_t GetInt(int64_t &position);
+
+    /// \desc Gets the next double from the input IL byte stream.
+    /// \param position Reference to the position position within the input stream.
+    double GetDouble(int64_t position);
+
+    /// \desc Gets the next string from the input IL byte stream.
+    /// \param position Reference to the position position within the input stream.
+    /// \param u8String Pointer to the string to be filled in with the decoded characters.
+    void GetString(int64_t &position, U8String *u8String);
+
+    /// \desc Gets the next value from the input list of bytes.
+    /// \param position Current position in the input list.
+    /// \param dslValue Returns value.
+    void GetValue(int64_t &position, DslValue *dslValue);
+
+    /// \desc Reads a list of bytes and translates them into dsl value runnable instructions.
+    void DeSerialize();
+
+    //Gets the location id for the event handler for the current script module.
+    int64_t GetEventLocation(SystemErrorHandlers errorHandler, int64_t moduleId);
 
     /// \desc Handles on error events.
     void JumpToOnErrorHandler();
@@ -103,39 +169,6 @@ public:
     ///       a store instruction.
     /// \param variable Pointer to the variable containing the push variable address instruction.
     void PushVariableAddress(DslValue *variable);
-
-    /// \desc Displays a CPU instruction, used for testing and debugging.
-    /// \param addr address of the instruction to show.
-    static int64_t DisplayASMCodeLine(int64_t addr, bool newline = true);
-
-    /// \desc built in array of function pointers. Order is same as lexers built in function names list.
-    typedef void (CPU::*method_function)();
-
-private:
-
-    int64_t        BP; //stack frame register for local variables.
-    int64_t        PC; //program instruction counter.
-    Stack<int64_t> SP{};    //Call and return stack.
-    List<DslValue> params;  //function call parameters stack
-    int64_t        top;   //top of params stack
-    DslValue       *A;  //Temporary A register storage.
-    long           nextTick;
-    int64_t        lastModuleId;
-    DslValue       *onTickEvent;
-    int64_t        eventBase; //start location where the EFI event information begins.
-
-    static int64_t  errorCode;
-    static U8String szErrorMsg;
-    List<DslValue>  eventHandlers; //Event function information in module id order.
-
-    static bool ReadFile(U8String *file, U8String *output);
-    static void Error(DslValue *error);
-    static bool IsMatch(u8chr ch, u8chr ex, bool caseLessCompare);
-    static u8chr GetExChar(U8String *expression, int64_t &offset);
-    static int64_t Find(U8String *search, U8String *expression, int64_t start);
-    static void Sub(U8String *search, U8String *result, int64_t start, int64_t length);
-    static int64_t ExpressionLength(U8String *expression);
-    void SetTickEvent(DslValue *dslValue);
 
 
 //Standard library function.

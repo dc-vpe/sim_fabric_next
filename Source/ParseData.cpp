@@ -39,15 +39,6 @@ LocationInfo locationInfo;
 /// \desc Previous lexer location information.
 LocationInfo  previousInfo;
 
-//Total test cases run.
-int64_t total_run = 0;
-
-//Total test cases failed.
-int64_t total_failed = 0;
-
-//total test cases passed.
-int64_t total_passed = 0;
-
 /// \desc Lexer information level to display.
 int64_t lexerInfoLevel = 0;
 
@@ -106,42 +97,53 @@ const char *standardFunctionNames[] =
 
 int64_t standardFunctionParams[]=
 {
-        3, //string.find,
-        1, //string.len,
-        3, //string.sub,
-        3, //string.replace,
-        1, //string.tolower,
-        1, //string.toupper,
-        2, //string.trimEnd,
-        2, //string.trimStart,
-        1, //string.toCollection,
-        1, //string.fromCollection,
-        1, //abs,
-        1, //acos,
-        1, //asin,
-        1, //atan,
-        2, //atan2,
-        1, //cos,
-        1, //sin,
-        1, //tan,
-        1, //cosh,
-        1, //sinh,
-        1, //tanh,
-        1, //exp,
-        1, //log,
-        1, //log10,
-        1, //sqrt,
-        1, //ceil,
-        1, //fabs,
-        1, //floor,
-        2, //fmod,
-        1, //print,
-        1, //printf,
-        0, //input,
-        1, //read,
-        2, //write,
-        1, //files,
-        1, //delete,
-        2, //random,
-        1, //seed
+    3, //string.find,
+    1, //string.len,
+    3, //string.sub,
+    3, //string.replace,
+    1, //string.tolower,
+    1, //string.toupper,
+    2, //string.trimEnd,
+    2, //string.trimStart,
+    1, //string.toCollection,
+    1, //string.fromCollection,
+    1, //abs,
+    1, //acos,
+    1, //asin,
+    1, //atan,
+    2, //atan2,
+    1, //cos,
+    1, //sin,
+    1, //tan,
+    1, //cosh,
+    1, //sinh,
+    1, //tanh,
+    1, //exp,
+    1, //log,
+    1, //log10,
+    1, //sqrt,
+    1, //ceil,
+    1, //fabs,
+    1, //floor,
+    2, //fmod,
+    1, //print,
+    1, //printf,
+    0, //input,
+    1, //read,
+    2, //write,
+    1, //files,
+    1, //delete,
+    2, //random,
+    1, //seed
 };
+
+/// \desc List of currently supported run time system.
+List<U8String> systemEventNames
+{
+        U8String(""),
+        U8String("OnError"),
+        U8String("OnTick")
+};
+
+/// \desc Full path name of the output file to generate.
+U8String outputFile;
