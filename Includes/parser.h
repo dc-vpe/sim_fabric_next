@@ -56,7 +56,7 @@ public:
     bool Parse();
 
 private:
-    //tracks jmp locations that need fixed up when the location they jmp to is encountered.
+    //tracks jmp locations that need fixed up when the position they jmp to is encountered.
     List<int64_t> jumpLocations;
     List<int64_t> ifJumpLocations;
     List<int64_t> continueLocations;
@@ -66,7 +66,7 @@ private:
 
     List<Token *> breakableTokens;
 
-    /// \desc location of encountered breaks.
+    /// \desc position of encountered breaks.
     List<int64_t> breakLocations;
 
     List<Token *> switches;

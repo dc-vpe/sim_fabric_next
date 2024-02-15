@@ -240,7 +240,7 @@ enum TokenTypes
     , COLON                = TOKEN_SPECIAL   | NONE          | NONE       | SET_BINDING_POWER(3)   | SET_TOKEN_ID(123)
     , INVALID_EXPRESSION   = TOKEN_ERROR     | NONE          | NONE       | SET_BINDING_POWER(100) | SET_TOKEN_ID(124)
     , EVENT_RETURN         = TOKEN_STATEMENT | NONE          | NONE       | SET_BINDING_POWER(100) | SET_TOKEN_ID(125)
-
+    , COMPONENT            = TOKEN_STATEMENT | NONE          | NONE       | SET_BINDING_POWER(100) | SET_TOKEN_ID(126)
 };
 #pragma clang diagnostic pop
 

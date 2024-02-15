@@ -11,6 +11,7 @@
 #include "ParseData.h"
 #include "../Includes/Stack.h"
 #include "../Includes/List.h"
+#include "BinaryFileReader.h"
 
 /// \desc TICKS are every 1/10th of a second.
 #define TICKS_PER_SECOND 100
@@ -39,7 +40,18 @@ public:
     }
 
     /// \desc Displays the lines of code in the program.
-    static void DisplayASMCodeLines();
+    static void DisplayASMCodeLines(List<DslValue *> &programInstructions);
+
+    /// \desc Deserializes the program symbol file and adds those symbols to the
+    ///       internal program.
+    /// \param binaryFileReader Pointer to the binary file reader to use.
+    /// \return True if the symbols are added to the program, false if the symbol
+    ///         file does not exist or can't be read.
+    bool DeSerializeSymbols(BinaryFileReader *binaryFileReader);
+
+    /// \desc Adds the locations used in the program as its symbols. Used when the symbol file
+    ///       can't be read or is not present.
+    void SetProgramLocationsAsSymbols();
 
     /// \desc Initializes the CPU to run the program.
     /// \param ilFile Pointer to a u8String containing the full path name to the compiled il program.
@@ -51,7 +63,7 @@ public:
 
     /// \desc Displays a CPU instruction, used for testing and debugging.
     /// \param addr address of the instruction to show.
-    static int64_t DisplayASMCodeLine(int64_t addr, bool newline = true);
+    static int64_t DisplayASMCodeLine(List<DslValue *> &programInstructions, int64_t addr, bool newline = true);
 
     /// \desc built in array of function pointers. Order is same as lexers built in function names list.
     typedef void (CPU::*method_function)();
@@ -67,9 +79,7 @@ private:
     long           nextTick; //next on text time
     int64_t        lastModuleId; //last module id changes with the instruction being executed
     int64_t        onTickEvent; //tracks the last tick event set, this changes when the instructions module changes.
-
-    List<Byte>          IL; //Bytes that make up the program.
-    List<DslValue *>    instructions;   //The actual instructions that are run.
+    List<DslValue *> instructions = {};   //The actual instructions that are run.
 
     static int64_t  errorCode;
     static U8String szErrorMsg;
@@ -95,33 +105,11 @@ private:
     /// \param dslValue Pointer to the index containing the JTB opcode.
     void ProcessJumpTable(DslValue *dslValue);
 
-    /// \desc Gets the next integer value from the input IL byte stream.
-    /// \param input Reference to a List<byte> that contains the byte stream.
-    /// \param position Reference to the position position within the input stream.
-    int64_t GetInt(List<Byte> &input, int64_t &position);
-
-    /// \desc Gets the next double from the input IL byte stream.
-    /// \param input Reference to a List<byte> that contains the byte stream.
-    /// \param position Reference to the position position within the input stream.
-    double GetDouble(List<Byte> &input, int64_t position);
-
-    /// \desc Gets the next string from the input IL byte stream.
-    /// \param input Reference to a List<byte> that contains the byte stream.
-    /// \param position Reference to the position position within the input stream.
-    /// \param u8String Pointer to the string to be filled in with the decoded characters.
-    void GetString(List<Byte> &input, int64_t &position, U8String *u8String);
-
-    /// \desc Gets the next value from the input list of bytes.
-    /// \param input Reference to a List<byte> that contains the byte stream.
-    /// \param position Current position in the input list.
-    /// \param dslValue Returns value.
-    void GetValue(List<Byte> &input, int64_t &position, DslValue *dslValue);
-
     /// \desc Reads a list of bytes and translates them into dsl value runnable instructions.
-    void DeSerialize();
+    void DeSerializeIL(BinaryFileReader *binaryFileReader);
 
-    //Gets the location id for the event handler for the current script module.
-    int64_t GetEventLocation(SystemErrorHandlers errorHandler, int64_t moduleId);
+    //Gets the position id for the event handler for the current script module.
+    static int64_t GetEventLocation(SystemErrorHandlers errorHandler, int64_t moduleId);
 
     /// \desc Handles on error events.
     void JumpToOnErrorHandler();
@@ -144,7 +132,7 @@ private:
     /// \param instruction Pointer to the next instruction to be executed.
     /// \param left Left side of the instruction for binary instructions or instruction
     ///             for unary or no operand instructions.
-    /// \param right Right side of the instruction for binary instructions or location
+    /// \param right Right side of the instruction for binary instructions or position
     ///              for conditional jump instructions.
     int64_t GetInstructionOperands(DslValue *instruction, DslValue *left, DslValue *right);
 

@@ -18,7 +18,7 @@
 /// in error and warning messages.
 const char *tokenNames[] =
 {
-    "VALID_TOKEN",
+    "INVALID_TOKEN",
     "OPEN_BLOCK",
     "CLOSE_BLOCK",
     "OPEN_PAREN",
@@ -142,7 +142,9 @@ const char *tokenNames[] =
     "VARIABLE_ADDRESS",
     "COLLECTION_ADDRESS",
     "COLON",
-    "INVALID_EXPRESSION"
+    "INVALID_EXPRESSION",
+    "EVENT_RETURN",
+    "COMPONENT"
 };
 
 /// \desc Displays the token type along with its index and _n.
@@ -386,132 +388,16 @@ char *cwd()
     return buffer;
 }
 
-/// \desc Adds the integer value in the fewest bytes needed to store the
-///       value based on its actual value.
-/// \param output List to write the bytes to.
-/// \param value value to be written to the output list.
-/// \remark The value is written as a count of bytes followed by the actual bytes. The single
-///         exception is if the value is < 128 in which case a single byte value is written.
-///         The reader then looks at the count byte when reading the value in and if the high
-///         bit is clear only the byte is read.
-void AddInt(List<Byte> &output, int64_t value)
-{
-    //unsigned is used to optimize checking for number of bytes needed to store the value.
-    auto v = (uint64_t) value;
-    if (v < 128)
-    {
-        output.push_back(v);
-        return;
-    }
-
-    //Bytes are written from the most to least significant. This makes reading slightly
-    //more efficient as the reversing of the bytes does not occur on read.
-    List<Byte> stack = {};
-
-    while (v > 0)
-    {
-        stack.push_back((Byte) (v & 0xFF));
-        v >>= 8;
-    }
-
-    output.push_back(0x80 + stack.Count());
-    while (stack.Count() > 0)
-    {
-        output.push_back(stack.pop_back());
-    }
-}
-
-/// \desc Adds and encodes a double value into the output program bytes.
-/// \param output Output list the encoded program bytes are added to.
-/// \param u8String Pointer to the string to add to the output byte list.
-void AddDouble(List<Byte> &output, double value)
-{
-    Byte *p1 = (Byte *)&value;
-    for(int64_t ii=0; ii<sizeof(double); ++ii)
-    {
-        output.push_back(p1[ii]);
-    }
-}
-
-/// \desc Adds and encodes a string into the output program bytes.
-/// \param output Output list the encoded program bytes are added to.
-/// \param u8String Pointer to the string to add to the output byte list.
-void AddString(List<Byte> &output, U8String *u8String)
-{
-    output.push_back(u8String->Count());
-
-    for(int64_t ii=0; ii < u8String->Count(); ++ii)
-    {
-        u8chr ch = u8String->get(ii);
-        Byte *p = (Byte *)&ch;
-        int64_t len = min_u8_ch_len(ch);
-        while( 0 < len-- )
-        {
-            output.push_back(*p++);
-        }
-    }
-}
-
-/// \desc Adds a new dsl value instruction to the output list.
-/// \param output List of types where the compacted program IL is to be written.
-/// \param dslValue DslValue containing the instruction to be written.
-void AddValue(List<Byte> &output, DslValue *dslValue)
-{
-    switch( dslValue->type )
-    {
-        case COLLECTION:
-        {
-            AddInt(output, 1);
-            List<KeyData *> list;
-            DslValue::GetKeyData(dslValue, &list);
-            AddInt(output, list.Count());
-            for (int ii = 0; ii < list.Count(); ++ii)
-            {
-                auto *tmpKey  = (U8String *) list.get(ii)->Key();
-                auto *tmpData = (DslValue *) list.get(ii)->Data();
-                AddString(output, tmpKey);
-                AddValue(output, tmpData);
-            }
-            break;
-        }
-        case INTEGER_VALUE:
-            AddInt(output, 2);
-            AddInt(output, dslValue->iValue);
-            break;
-        case DOUBLE_VALUE:
-            AddInt(output, 3);
-            AddDouble(output, dslValue->dValue);
-            break;
-        case CHAR_VALUE:
-            AddInt(output, 4);
-            AddInt(output, dslValue->cValue);
-            break;
-        case STRING_VALUE:
-            AddInt(output, 5);
-            AddString(output, &dslValue->sValue);
-            break;
-        case BOOL_VALUE:
-            AddInt(output, 6);
-            AddInt(output, dslValue->bValue);
-            break;
-        default:
-            break;
-    }
-}
-
 /// \desc Serializes an instruction in the compiled program into a common IL
 ///       binary format across all OS and CPUs.
 /// \param output list of bytes containing the serialized program.
 /// \param dslValue program instruction to be serialized.
-void Serialize(List<Byte> &output)
+void Serialize(BinaryFileWriter *file)
 {
     for(int64_t ii=0; ii<program.Count(); ++ii)
     {
         DslValue *dslValue = program[ii];
-        if (dslValue->opcode != EFI || dslValue->moduleId > 0 )
-        {
-            output.push_back(dslValue->opcode);
-        }
+        file->AddInt(dslValue->opcode);
         switch (dslValue->opcode)
         {
             case END: case NOP: case PSP: case RFE: case SLV: case SAV: case ADA:
@@ -523,42 +409,40 @@ void Serialize(List<Byte> &output)
             case RET:
                 break;
             case PVA: case PSV: case PSL: case JBF: case PCV:
-                AddInt(output, dslValue->operand);
+                file->AddInt(dslValue->operand);
                 break;
             case JIF: case JIT:
-                AddInt(output, dslValue->operand);
-                AddInt(output, dslValue->location);
-                AddInt(output, dslValue->bValue);
+                file->AddInt(dslValue->operand);
+                file->AddInt(dslValue->location);
+                file->AddInt(dslValue->bValue);
                 break;
             case JMP: case JSR:
-                AddInt(output, dslValue->location);
+                file->AddInt(dslValue->location);
                 break;
             case EFI:
-                if (dslValue->moduleId > 0)
-                {
-                    AddInt(output, dslValue->operand);
-                    AddInt(output, dslValue->location);
-                }
+                file->AddInt(dslValue->operand);
+                file->AddInt(dslValue->location);
+                file->AddInt(dslValue->moduleId);
                 break;
             case DEF: case PSI:
-                AddValue(output, dslValue);
+                file->AddValue(dslValue);
                 break;
             case JTB:
-                AddInt(output, dslValue->cases.Count());
+                file->AddInt(dslValue->cases.Count());
                 for (int tt = 0; tt < dslValue->cases.Count(); ++tt)
                 {
-                    AddValue(output, dslValue->cases[tt]);
-                    AddInt(output, dslValue->cases[tt]->type == DEFAULT ? 1 : 0);
-                    AddInt(output, dslValue->cases[tt]->operand);
-                    AddInt(output, dslValue->cases[tt]->location);
+                    file->AddValue(dslValue->cases[tt]);
+                    file->AddInt(dslValue->cases[tt]->type == DEFAULT ? 1 : 0);
+                    file->AddInt(dslValue->cases[tt]->operand);
+                    file->AddInt(dslValue->cases[tt]->location);
                 }
                 break;
             case DCS:
-                AddInt(output, dslValue->operand);
-                AddInt(output, dslValue->iValue);
+                file->AddInt(dslValue->operand);
+                file->AddInt(dslValue->iValue);
                 break;
             case CID:
-                AddInt(output, dslValue->moduleId);
+                file->AddInt(dslValue->moduleId);
                 break;
         }
     }
@@ -567,7 +451,8 @@ void Serialize(List<Byte> &output)
 /// \desc Writes out the symbol file needed for debugging.
 bool WriteSymbols()
 {
-    List<Byte> symbols;
+
+    BinaryFileWriter writer = {};
 
     for(int64_t ii=0; ii<program.Count(); ++ii)
     {
@@ -575,12 +460,12 @@ bool WriteSymbols()
         {
             continue;
         }
-        AddInt(symbols, ii);
-        AddString(symbols, &program[ii]->variableName);
-        AddString(symbols, &program[ii]->variableScriptName);
+        writer.AddInt(ii);
+        writer.AddString(&program[ii]->variableName);
+        writer.AddString(&program[ii]->variableScriptName);
     }
 
-    return symbols.fwrite(symbolFile.cStr());
+    return writer.fwrite(&symbolFile);
 }
 
 /// \desc Entry point for the DSL compiler.
@@ -766,7 +651,7 @@ int main(int argc, char *argv[])
 
     delete lexer;
 
-    List<Byte> ilOutputProgram = {};
+    BinaryFileWriter ilOutputProgram = {};
 
     if ( runLevel < 2 )
     {
@@ -777,7 +662,7 @@ int main(int argc, char *argv[])
         if ( parserInfoLevel > 0 )
         {
             printf("\n<<<< Parser Generated Code >>>>\n");
-            CPU::DisplayASMCodeLines();
+            CPU::DisplayASMCodeLines(program);
         }
 
         if ( !rc )
@@ -787,8 +672,8 @@ int main(int argc, char *argv[])
         }
 
         //Create the actual program.
-        Serialize(ilOutputProgram);
-        if ( !ilOutputProgram.fwrite(outputFile.cStr()) )
+        Serialize(&ilOutputProgram);
+        if ( !ilOutputProgram.fwrite(&outputFile) )
         {
             PrintIssue(4005, true, false, "Can't write compiled program to output file %s", outputFile.cStr());
             return -5;
@@ -805,7 +690,7 @@ int main(int argc, char *argv[])
         if ( displayAssembly )
         {
             printf("\n<<<< IL Assembly Code >>>>\n");
-            CPU::DisplayASMCodeLines();
+            CPU::DisplayASMCodeLines(program);
         }
 
         double start = (double)clock()/(double)CLOCKS_PER_SEC;
@@ -832,7 +717,7 @@ int main(int argc, char *argv[])
         auto *cpu = new CPU();
         cpu->Init(&outputFile, &symbolFile);
         printf("\n<<<< IL Assembly Code >>>>\n");
-        CPU::DisplayASMCodeLines();
+        CPU::DisplayASMCodeLines(program);
         delete cpu;
     }
 

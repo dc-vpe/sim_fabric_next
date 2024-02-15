@@ -7,12 +7,12 @@
 
 #include "dsl_types.h"
 
-/// \desc This structure contains the information about the location in the
+/// \desc This structure contains the information about the position in the
 ///       source code being parsed.
 class LocationInfo
 {
 public:
-    /// \desc Current parse location in the source code.
+    /// \desc Current parse position in the source code.
     int64_t location;
 
     /// \desc Current line in the source code.
@@ -27,19 +27,19 @@ public:
     /// \desc Number of close parenthesis encountered at this point in the source file.
     int64_t closeParens;
 
-    /// \desc Last number of openBlocks before the location was incremented.
+    /// \desc Last number of openBlocks before the position was incremented.
     int64_t openBlocks;
 
-    /// \desc Last number of openBlocks before the location was incremented.
+    /// \desc Last number of openBlocks before the position was incremented.
     int64_t closeBlocks;
 
-    /// \desc Returns the difference between open parenthesis and close parenthesis at this source location.
+    /// \desc Returns the difference between open parenthesis and close parenthesis at this source position.
     [[nodiscard]] int64_t Parens() const { return openParens - closeParens; }
 
-    /// \desc Returns the difference between open blocks and close blocks at this source location.
+    /// \desc Returns the difference between open blocks and close blocks at this source position.
     [[nodiscard]] int64_t Blocks() const { return openBlocks - closeBlocks; }
 
-    /// \desc Sets the location to the start of the source.
+    /// \desc Sets the position to the start of the source.
     void Reset()
     {
         location = 0;
@@ -62,9 +62,9 @@ public:
     {
     }
 
-    /// \desc Moves the location forward 1 character position, line and column are updated
-    ///       as necessary to track with the location being parsed.
-    /// \param ch Current character read, the location info uses this character to process
+    /// \desc Moves the position forward 1 character position, line and column are updated
+    ///       as necessary to track with the position being parsed.
+    /// \param ch Current character read, the position info uses this character to process
     ///           columns, lines, parens, and braces.
     void Increment(u8chr ch)
     {

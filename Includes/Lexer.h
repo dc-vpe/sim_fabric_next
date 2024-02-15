@@ -19,6 +19,7 @@
 #include "../Includes/Queue.h"
 #include "WarningLevels.h"
 #include "ParseData.h"
+#include "BinaryFileWriter.h"
 
 /// \desc Checks if the text character is a number 0 though 9 inclusive.
 #define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
@@ -156,9 +157,6 @@ private:
     /// \desc True when a collection element is being defined.
     bool isCollectionElement;
 
-    /// \desc True when a new variable's assigment is being processed.
-    bool definingAndAssigningVariable;
-
     /// \desc Used when defining a code block for a function, tracks the number of open and close { }
     ///       to determine when the function ends.
     int64_t blockCount;
@@ -178,8 +176,11 @@ private:
 
     u8chr GetNext();
 
-    //Temporary values used for value stack when calculating static expressions.
+    /// \desc Temporary values used for value stack when calculating static expressions.
     List<DslValue *> tmpValues;
+
+    /// \desc data for any components encountered.
+    BinaryFileWriter components = {};
 
     bool Lex(int64_t id);
     static bool IsHexDigit(u8chr ch);
@@ -260,6 +261,8 @@ private:
     static bool AddStandardAssets();
     TokenTypes ReadNextToken();
     TokenTypes GenerateTokens(TokenTypes type);
+    TokenTypes AddComponentInformation(LocationInfo start, LocationInfo end);
+    TokenTypes UpdateComponentInformation();
 };
 
 #endif

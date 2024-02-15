@@ -2,14 +2,13 @@
 #include <cstdio>
 #include <cctype>
 
-
 //Prevents clang from complaining the source is too complex to perform a static analyze on. Warnings
 //and errors are still generated this is informational only.
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
 
-/// \desc Gets the character at the location.
-/// \return The character or U8_NULL_CHR if location is outside the range of the code.
+/// \desc Gets the character at the position.
+/// \return The character or U8_NULL_CHR if position is outside the range of the code.
 u8chr Lexer::GetCurrent()
 {
     if ( locationInfo.location < 0 || locationInfo.location >= parseBuffer.Count() )
@@ -19,8 +18,8 @@ u8chr Lexer::GetCurrent()
     return parseBuffer.get(locationInfo.location);
 }
 
-/// \desc Gets the character after the one at the current location.
-/// \return The character or U8_NULL_CHR if location is outside the range of the code.
+/// \desc Gets the character after the one at the current position.
+/// \return The character or U8_NULL_CHR if position is outside the range of the code.
 u8chr Lexer::GetNext()
 {
     if ( locationInfo.location < 0 || (locationInfo.location+1 >= parseBuffer.Count()) )
@@ -105,8 +104,8 @@ bool Lexer::IsValidStringEscape(char ch)
     }
 }
 
-/// \desc Gets the Type of the token at the tok location. The
-///       location is moved to the next parse location.
+/// \desc Gets the Type of the token at the tok position. The
+///       position is moved to the next parse position.
 TokenTypes Lexer::GetOperatorToken(bool ignoreErrors)
 {
     u8chr ch = GetCurrent();
@@ -395,8 +394,8 @@ TokenTypes Lexer::GetKeyWordTokenType(bool ignoreErrors)
     return INVALID_TOKEN;
 }
 
-/// \desc Checks if the code source at the tok location is the start of a single line comment.
-/// \param ch Currently read character from the location in the parse buffer.
+/// \desc Checks if the code source at the tok position is the start of a single line comment.
+/// \param ch Currently read character from the position in the parse buffer.
 /// \return True if the start of a single line comment, else false.
 bool Lexer::IsSingleLineComment( u8chr ch)
 {
@@ -417,9 +416,9 @@ bool Lexer::IsSingleLineComment( u8chr ch)
     return (char)ch1 == '/';
 }
 
-/// \desc Checks if the tok location in the source starts a multi-line comment.
-/// \param ch Currently read character from the location in the parse buffer.
-/// \return True if the location starts a multi-line comment, else false.
+/// \desc Checks if the tok position in the source starts a multi-line comment.
+/// \param ch Currently read character from the position in the parse buffer.
+/// \return True if the position starts a multi-line comment, else false.
 bool Lexer::IsMultiLineComment( u8chr ch)
 {
     u8chr ch1;
@@ -437,7 +436,7 @@ bool Lexer::IsMultiLineComment( u8chr ch)
     return (char)ch1 == '*';
 }
 
-/// \desc converts the tok location to a number.
+/// \desc converts the tok position to a number.
 /// \return True, if successful or false if a fatal error occurs.
 bool Lexer::GetNumber(bool ignoreErrors)
 {
@@ -544,7 +543,7 @@ u8chr Lexer::GetEscapeValue(int64_t factor)
 }
 
 /// \desc Processes a single string escape character
-/// \param ch Character at previous location, will be updated with the new character.
+/// \param ch Character at previous position, will be updated with the new character.
 /// \return True if successful, false if an error occurs and processing can't continue.
 bool Lexer::ProcessEscapeCharacter(u8chr &ch, bool ignoreErrors)
 {
@@ -1446,7 +1445,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
         }
         if ( type == ERROR_TOKEN )
         {
-            definingAndAssigningVariable = false;
             return false;
         }
         switch( type )
@@ -1469,7 +1467,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if (!ProcessOperation(values, type, ignoreErrors) )
                     {
-                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1482,7 +1479,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
                     {
-                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1496,7 +1492,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
                     {
-                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1515,7 +1510,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                 {
                     if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
                     {
-                        definingAndAssigningVariable = false;
                         return false;
                     }
                 }
@@ -1536,7 +1530,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
                     PrintIssue(2075, true, false,
                                "Expressions used to initialize a variable "
                                "can only contain values, operators, and collections");
-                    definingAndAssigningVariable = false;
                 }
                 break;
         }
@@ -1545,7 +1538,6 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
     {
         if ( !ProcessOperation(values, ops.pop_back(), ignoreErrors) )
         {
-            definingAndAssigningVariable = false;
             return false;
         }
     }
@@ -1565,19 +1557,21 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
 /// \remark If the expression can't be evaluated at lex time a default
 ///         value is set in the dslValue. This works because the code
 ///         will replace this value when it is run.
-bool Lexer::ProcessSingleAssignmentExpression(Token *token, DslValue *dslValue, bool &isStaticExpression, int64_t index, bool ignoreErrors)
+bool Lexer::ProcessSingleAssignmentExpression(Token *token,
+                                              DslValue *dslValue,
+                                              bool &isStaticExpression,
+                                              int64_t index,
+                                              bool ignoreErrors)
 {
     LocationInfo end;
     if ( !GetExpressionEnd(false, end) )
     {
-        definingAndAssigningVariable = false;
         return false;
     }
     if (!IsStaticExpression(end))
     {
         if ( !DefineStatements(end, true))
         {
-            definingAndAssigningVariable = false;
             return false;
         }
         if ( isCollectionElement )
@@ -1614,15 +1608,13 @@ bool Lexer::DefineSingleVariableAssignment(TokenTypes type, Token *token)
 {
     DslValue dslValue = {};
 
-    definingAndAssigningVariable = true;
     bool isStaticExpression = false;
 
     if ( !ProcessSingleAssignmentExpression(token, &dslValue, isStaticExpression, -1, false) )
     {
-        definingAndAssigningVariable = false;
         return false;
     }
-    definingAndAssigningVariable = true;
+
     if ( isStaticExpression )
     {
         switch( type )
@@ -2427,11 +2419,11 @@ bool Lexer::DefineSwitch()
 /// \desc Checks that the syntax of a for loop is correct. Generates errors
 ///       if not. On error parsing is moved to the end of the for loop
 ///       statement block.
-/// \param init Reference to the location info structure that receives the start of the initialization section.
-/// \param cond Reference to the location info structure that receives the start of the conditional section.
-/// \param update Reference to the location info structure that receives the start of the update section.
-/// \param block Reference to the location info structure that receives the start of the statement block section.
-/// \param end Reference to the location info structure that receives the end of the statement block section.
+/// \param init Reference to the position info structure that receives the start of the initialization section.
+/// \param cond Reference to the position info structure that receives the start of the conditional section.
+/// \param update Reference to the position info structure that receives the start of the update section.
+/// \param block Reference to the position info structure that receives the start of the statement block section.
+/// \param end Reference to the position info structure that receives the end of the statement block section.
 /// \return True if successful or false if onr or mote errors occur.
 bool Lexer::CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo &update, LocationInfo &block, LocationInfo &end)
 {
@@ -2488,8 +2480,8 @@ bool Lexer::CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo 
 ///       define section method.
 /// \param beginToken Token to output for the beginning part of the for loop section.
 /// \param endToken Token to output for the end part of the for loop section.
-/// \param start Start location of the section.
-/// \param end End location of the section.
+/// \param start Start position of the section.
+/// \param end End position of the section.
 bool Lexer::DefineForSection(TokenTypes beginToken, TokenTypes endToken, LocationInfo start, LocationInfo end)
 {
     bool rc = false;
@@ -2558,7 +2550,7 @@ bool Lexer::DefineFor()
 }
 
 /// \desc Skips to the end of a code block.
-/// \remark sets the previous location information as switch needs to back up one place on case block end.
+/// \remark sets the previous position information as switch needs to back up one place on case block end.
 bool Lexer::SkipToEndOfBlock(LocationInfo start, int64_t errorCode, const char *errorMsg)
 {
     locationInfo = start;
@@ -2811,7 +2803,7 @@ bool Lexer::SkipInnerFunctionCall()
 }
 
 /// \desc Counts how many parameters there are in a function call. Expects the
-///       location to be at the open paren of the function call.
+///       position to be at the open paren of the function call.
 /// \return Number of parameters sent to the function.
 int64_t Lexer::CountFunctionArguments()
 {
@@ -2824,7 +2816,7 @@ int64_t Lexer::CountFunctionArguments()
     tmpFullFunctionName.CopyFrom(&fullFunName);
 
     //Skip the open paren
-    SkipNextTokenType(true);
+    SkipNextTokenType(false);
 
     //Check for empty function call.
     if (PeekNextTokenType() == CLOSE_PAREN )
@@ -3102,7 +3094,7 @@ TokenTypes Lexer::SkipToEndOfStatement()
     return type;
 }
 
-/// \desc Gets the next token to be read without moving the lexing location.
+/// \desc Gets the next token to be read without moving the lexing position.
 /// \param skip Number of tokens to skip ahead, default is 1 which is the next token.
 /// \return The next token type to be read.
 TokenTypes Lexer::PeekNextTokenType(int64_t skip, bool checkColon)
@@ -3166,6 +3158,9 @@ u8chr Lexer::GetNextNonCommentCharacter()
 }
 
 /// \desc Skips the next token setting the lex point to the token after the current token.
+/// \param checkColon True of a colon should a colon be considered a valid token, else false.
+/// \remark By language definition there should be only 2 cases where a colon is considered
+///         valid, when defining a collection key and when specifying a case value.
 void Lexer::SkipNextTokenType(bool checkColon)
 {
     (void) GetNextTokenType(true, checkColon);
@@ -3218,9 +3213,12 @@ bool Lexer::IsNumber(u8chr ch)
     return rc;
 }
 
-/// \desc Gets the next token Type based on location from the code source.
+/// \desc Gets the next token Type based on position from the code source.
 /// \param ignoreErrors If true no errors will be generated. This is used when
 ///                     recursively calling this method.
+/// \param checkForColon If True a colon is considered to be a valid token, normally
+///                      a colon is not considered valid except in case and
+///                      when defining a collection key.
 /// \return The next token or INVALID_TOKEN if an error or at end of code _s.
 TokenTypes Lexer::GetNextTokenType(bool ignoreErrors, bool checkForColon)
 {
@@ -3246,6 +3244,13 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors, bool checkForColon)
     return type;
 }
 
+/// \desc Gets the next token Type based on position from the code source.
+/// \param ignoreErrors If true no errors will be generated. This is used when
+///                     recursively calling this method.
+/// \param checkForColon If True a colon is considered to be a valid token, normally
+///                      a colon is not considered valid except in case and
+///                      when defining a collection key.
+/// \return The next token or INVALID_TOKEN if an error or at end of code _s.
 TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
 {
     u8chr ch = GetNextNonCommentCharacter();
@@ -3367,6 +3372,13 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
             type = GetNextTokenType(false);
         }
     }
+
+    //Check for UX tool component specifier.
+    if ( tmpBuffer->IsEqual("Component"))
+    {
+        return COMPONENT;
+    }
+
     //If the identifier is not an invalid type it has to be a valid key word.
     if ( type != INVALID_TOKEN )
     {
@@ -3618,7 +3630,7 @@ u8chr Lexer::SkipToNextNonWhiteSpaceCh()
     return SkipWhiteSpace();
 }
 
-/// \desc Skip ahead to the character or stay at same parse location if the character is not found.
+/// \desc Skip ahead to the character or stay at same parse position if the character is not found.
 /// \param toCh character to search for.
 /// \param beforeCh character that must occur after the to character.
 /// \return True if the to character is encountered before the before character, else false.
@@ -3745,6 +3757,9 @@ bool Lexer::Lex()
             return false;
         }
     }
+
+    //temporary, write to file, in real world needs to write out via web socket to ux client.
+    components.fwrite(new U8String("components.bin"));
 
     return true;
 }
@@ -4131,6 +4146,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             }
             return type;
         case RETURN:
+        case EVENT_RETURN:
             if ( !definingFunction )
             {
                 PrintIssue(2258, true, false,
@@ -4211,6 +4227,8 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
         case CASE_BLOCK_BEGIN: case CASE_BLOCK_END: case DEFAULT_BLOCK_BEGIN: case DEFAULT_BLOCK_END: case COLLECTION:
         case COLLECTION_BEGIN: case COLLECTION_END: case COLLECTION_VALUE: case INVALID_EXPRESSION:
             return type;
+        case COMPONENT:
+            return UpdateComponentInformation();
     }
 
     return type;
@@ -4233,7 +4251,6 @@ Lexer::Lexer()
     constSpecified = false;
     blockCount = 0;
     isCollectionElement = false;
-    definingAndAssigningVariable = false;
     prev = INVALID_TOKEN;
     last = INVALID_TOKEN;
     m_id = -1;
@@ -4276,6 +4293,49 @@ Lexer::~Lexer()
 
     delete tmpBuffer;
     delete tmpValue;
+}
+
+/// \desc Parses the Component meta information into a compacted data packet for transmition
+///       to the low code, no code, tool suite.
+TokenTypes Lexer::AddComponentInformation(LocationInfo start, LocationInfo end)
+{
+    TokenTypes type;
+
+    while( locationInfo.location < end.location)
+    {
+        type = GetNextTokenType(true);
+
+    }
+
+    return type;
+}
+
+
+/// \desc Updates the component information and sends it to the low code no code UX tool.
+/// \returns The next token as if the component has not been specified.
+/// \remark Component meta processing does not go though the parser or runtime. It is a lexer
+///         process that sends information to be processed to the low code no code tool. The
+///         lexers job when processing components is to simplify the text to make it easier
+///         for the low code no code tool to process the component information.
+TokenTypes Lexer::UpdateComponentInformation()
+{
+    LocationInfo start = locationInfo;
+    SkipToEndOfBlock(locationInfo);
+    LocationInfo end = locationInfo;
+    locationInfo = start;
+
+    TokenTypes type = AddComponentInformation(start, end);
+    if ( type == ERROR_TOKEN )
+    {
+        return INVALID_TOKEN;
+    }
+
+    if (GetNextTokenType() == COMPONENT )
+    {
+        UpdateComponentInformation();
+    }
+
+    return GetNextTokenType();
 }
 
 #pragma clang diagnostic pop

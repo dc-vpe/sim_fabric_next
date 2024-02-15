@@ -33,7 +33,7 @@ public:
     /// \desc Creates a DslValue containing an opcode and one or more operands.
     /// \param op Opcode that defines the action that should be taken.
     /// \param operand Additional information needed to process the instruction.
-    /// \param location for jump instructions contains the location to jump to if the jump is taken.
+    /// \param location for jump instructions contains the position to jump to if the jump is taken.
     explicit DslValue(OPCODES op, int64_t operand = 0, int64_t location = 0);
 
     /// \desc Creates a DSL value from the one pointed.
@@ -77,7 +77,7 @@ public:
     /// \desc Additional info needed by the instruction.
     int64_t operand;
 
-    /// \desc Contains the location to jump to if the opcode is a jump.
+    /// \desc Contains the position to jump to if the opcode is a jump.
     int64_t location;
 
     /// \desc Indexes into the collection for collection elements.

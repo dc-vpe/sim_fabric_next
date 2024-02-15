@@ -9,7 +9,7 @@
 #include <cmath>
 #include <cctype>
 #include <dirent.h>
-#include <time.h>
+#include <ctime>
 
 #ifdef __linux__
 #include <cerrno>
@@ -83,20 +83,20 @@ const char *OpCodeNames[] =
 int64_t  CPU::errorCode;
 U8String CPU::szErrorMsg;
 
-void CPU::DisplayASMCodeLines()
+void CPU::DisplayASMCodeLines(List<DslValue *> &programInstructions)
 {
     int64_t addr = 0;
 
     while(addr < program.Count() )
     {
-        addr = DisplayASMCodeLine(addr) + 1;
+        addr = DisplayASMCodeLine(programInstructions, addr) + 1;
     }
 }
 
 /// \desc Displays the IL Assembly for the program.
-int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
+int64_t CPU::DisplayASMCodeLine(List<DslValue *> &programInstructions, int64_t addr, bool newline)
 {
-    DslValue *dslValue = program[addr];
+    DslValue *dslValue = programInstructions[addr];
 
     printf("%4.4ld\t%s", (long)addr, OpCodeNames[dslValue->opcode]);
     switch(dslValue->opcode)
@@ -137,7 +137,7 @@ int64_t CPU::DisplayASMCodeLine(int64_t addr, bool newline)
             break;
         case PCV:
             printf("\t%s[", dslValue->variableName.cStr());
-            program[addr-2]->Print(true);
+            programInstructions[addr-2]->Print(true);
             printf("]");
             break;
         case DEC: case INC:
@@ -317,7 +317,7 @@ DslValue *CPU::GetParam(int64_t totalParams, int64_t index)
 /// \desc Reads a file current using the local file system. The file is returned
 ///       int the A dsl value. In case of an error the A dsl value will contain
 ///       an error.
-/// \param file location to read the file from.
+/// \param file position to read the file from.
 /// \param output U8String to write the contents of the file to.
 /// \return True if successful, else false if an error occurs.
 bool CPU::ReadFile(U8String *file, U8String *output)
@@ -399,7 +399,7 @@ void CPU::pfn_string_find()
     U8String expression;
     expression.CopyFrom(&param2->sValue);
 
-    //start location
+    //start position
     param3->Convert(INTEGER_VALUE);
     int64_t start = param3->iValue;
 
@@ -1006,15 +1006,15 @@ void CPU::pfn_write()
 
     if ( fileName.BeginsWith("https://", false))
     {
-
+        printf("Not Implemented 1.");
     }
     else if ( fileName.BeginsWith("ftps://", false))
     {
-
+        printf("Not Implemented 2.");
     }
     else if ( fileName.BeginsWith("wss://", false) )
     {
-
+        printf("Not Implemented 3.");
     }
     else
     {
@@ -1226,7 +1226,7 @@ void CPU::JumpToSubroutine(DslValue *dslValue)
     int64_t saved = BP;
     BP = top - totalParams;
     PC = dslValue->location;
-    RunNoTrace();   //BUGBUG: no way to run traced when calling a script function
+    RunNoTrace();   //BUG-BUG: no way to run traced when calling a script function
     A->SAV(&params[top]);
     --top;
     BP = saved;
@@ -1270,120 +1270,19 @@ void CPU::ProcessJumpTable(DslValue *dslValue)
     --top;
 }
 
-/// \desc Gets the next integer value from the input IL byte stream.
-/// \param input Reference to a List<byte> that contains the byte stream.
-/// \param position Reference to the position position within the input stream.
-int64_t CPU::GetInt(List<Byte> &input, int64_t &position)
-{
-    int64_t value = 0;
-    Byte len = input.get(position++);
-    //positive values < 128 are stored as a single byte as these values
-    //can be detected without a count.
-    if ( len < 128 )
-    {
-        return (int64_t) len;
-    }
-
-    len &= 0x7f; //msb is not used as max length is 8
-    while( 0 < len--)
-    {
-        value <<= 8;
-        value |= input.get(position++);
-    }
-
-    return value;
-}
-
-/// \desc Gets the next double from the input IL byte stream.
-/// \param input Reference to a List<byte> that contains the byte stream.
-/// \param position Reference to the position position within the input stream.
-double CPU::GetDouble(List<Byte> &input, int64_t position)
-{
-    double value;
-    Byte *p1 = (Byte *)&value;
-    for(int64_t ii=0; ii<sizeof(double); ++ii)
-    {
-        *p1++ = input[position++];
-    }
-
-    return value;
-}
-
-/// \desc Gets the next string from the input IL byte stream.
-/// \param input Reference to a List<byte> that contains the byte stream.
-/// \param position Reference to the position position within the input stream.
-/// \param u8String Pointer to the string to be filled in with the decoded characters.
-void CPU::GetString(List<Byte> &input, int64_t &position, U8String *u8String)
-{
-    u8chr ch;
-    int64_t e;
-    int64_t length = GetInt(input, position);
-    Byte *current = (Byte *)&input.Array()[position];
-    Byte *pIn = current;
-    for(int64_t ii=0; ii < length; ++ii)
-    {
-        pIn = utf8_decode(pIn, &ch, &e);
-        u8String->push_back(ch);
-    }
-    position += (int64_t)pIn - (int64_t)current;
-}
-
-/// \desc Gets the next value from the input list of bytes.
-/// \param input Reference to a List<byte> that contains the byte stream.
-/// \param position Current position in the input list.
-/// \param dslValue Returns value.
-void CPU::GetValue(List<Byte> &input, int64_t &position, DslValue *dslValue)
-{
-    int64_t typeCode = GetInt(input, position);
-    switch( typeCode )
-    {
-        default:
-            break;
-        case 1:
-        {
-            int64_t count = GetInt(input, position);
-            for(int64_t ii=0; ii<count; ++ii)
-            {
-                auto *key = new U8String();
-                auto *elementDslValue = new DslValue();
-                GetString(input, position, key);
-                GetValue(input, position, elementDslValue);
-                dslValue->indexes.Set(key, (void *)elementDslValue);
-            }
-            break;
-        }
-        case 2:
-            dslValue->iValue = GetInt(input, position);
-            break;
-        case 3:
-            dslValue->dValue = GetDouble(input, position);
-            break;
-        case 4:
-            dslValue->cValue = GetInt(input, position);
-            break;
-        case 5:
-            GetString(input, position, &dslValue->sValue);
-            break;
-        case 6:
-            dslValue->bValue = GetInt(input, position);
-            break;
-    }
-}
-
 /// \desc Translates the IL bytes into a runnable program.
 ///       A program that can be run is a set of dslValues.
-void CPU::DeSerialize()
+void CPU::DeSerializeIL(BinaryFileReader *binaryFileReader)
 {
     DslValue *dslValue;
 
-    int64_t position = 0;
     int64_t lastModId = 1;
 
-    program.Clear();
+    instructions.Clear();
 
-    while(position < IL.Count() )
+    while(!binaryFileReader->eof() )
     {
-        auto opcode = (OPCODES)IL.get(position++);
+        auto opcode = (OPCODES)binaryFileReader->GetInt();
         dslValue = new DslValue(opcode);
         dslValue->moduleId = lastModId;
         switch( opcode )
@@ -1396,51 +1295,90 @@ void CPU::DeSerialize()
             case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
                 break;
             case PVA: case PSV: case PSL: case JBF: case PCV:
-                dslValue->operand = GetInt(IL, position);
+                dslValue->operand = binaryFileReader->GetInt();
                 break;
             case JIF: case JIT:
-                dslValue->operand = GetInt(IL, position);
-                dslValue->location = GetInt(IL, position);
-                dslValue->bValue = GetInt(IL, position);
+                dslValue->operand = binaryFileReader->GetInt();
+                dslValue->location = binaryFileReader->GetInt();
+                dslValue->bValue = binaryFileReader->GetInt();
                 break;
             case JMP: case JSR:
-                dslValue->location = GetInt(IL, position);
+                dslValue->location = binaryFileReader->GetInt();
                 break;
             case EFI:
-                dslValue->operand = GetInt(IL, position);
-                dslValue->location = GetInt(IL, position);
+                dslValue->operand = binaryFileReader->GetInt();
+                dslValue->location = binaryFileReader->GetInt();
+                dslValue->moduleId = binaryFileReader->GetInt();
                 break;
             case DEF: case PSI:
-                GetValue(IL, position, dslValue);
+                binaryFileReader->GetValue(dslValue);
                 break;
             case JTB:
             {
-                int64_t count = GetInt(IL, position);
+                int64_t count = binaryFileReader->GetInt();
                 for (int ii = 0; ii < count; ++ii)
                 {
                     auto *caseValue = new DslValue();
-                    GetValue(IL, position, caseValue);
-                    if (GetInt(IL, position) == 1)
+                    binaryFileReader->GetValue(caseValue);
+                    if (binaryFileReader->GetInt() == 1)
                     {
                         caseValue->type = DEFAULT;
                     }
-                    caseValue->operand = GetInt(IL, position);
-                    caseValue->location = GetInt(IL, position);
+                    caseValue->operand = binaryFileReader->GetInt();
+                    caseValue->location = binaryFileReader->GetInt();
                     dslValue->cases.push_back(caseValue);
                 }
                 break;
             }
             case DCS:
-                dslValue->operand = GetInt(IL, position);
-                dslValue->iValue = GetInt(IL, position);
+                dslValue->operand = binaryFileReader->GetInt();
+                dslValue->iValue = binaryFileReader->GetInt();
                 break;
             case CID:
-                lastModId = GetInt(IL, position);
+                lastModId = binaryFileReader->GetInt();
                 dslValue->moduleId = lastModId;
                 break;
         }
 
-        program.push_back(dslValue);
+        instructions.push_back(dslValue);
+    }
+}
+
+/// \desc Deserializes the program symbol file and adds those symbols to the
+///       internal program.
+/// \param binaryFileReader Pointer to the binary file reader to use.
+/// \return True if the symbols are added to the program, false if the symbol
+///         file does not exist or can't be read.
+bool CPU::DeSerializeSymbols(BinaryFileReader *binaryFileReader)
+{
+    while( !binaryFileReader->eof() )
+    {
+        int64_t addr = binaryFileReader->GetInt();
+        binaryFileReader->GetString(&instructions[addr]->variableName);
+        binaryFileReader->GetString(&instructions[addr]->variableScriptName);
+    }
+
+    return true;
+}
+
+/// \desc Adds the locations used in the program as its symbols. Used when the symbol file
+///       can't be read or is not present.
+void CPU::SetProgramLocationsAsSymbols()
+{
+    for(int ii=0; ii<instructions.Count(); ++ii)
+    {
+        switch( instructions[ii]->opcode )
+        {
+            case DEF: case DFL: case EFI:
+            case PVA: case DCS: case PCV:
+            case DEC: case INC:
+            case INL: case DEL: case PSV:
+            case SAV: case SVL: case PSL:
+            case PSP:
+                instructions[ii]->variableName.printf((char *)"%llx", (long long int)instructions[ii]->operand);
+            default:
+                break;
+        }
     }
 }
 
@@ -1451,47 +1389,19 @@ void CPU::DeSerialize()
 /// \returns True if successful or false if an error occurs.
 bool CPU::Init(U8String *ilFile, U8String *symFile)
 {
-    IL.Clear();
-    if ( !IL.fread(ilFile->cStr()) )
-    {
-        return false;
-    }
+    BinaryFileReader binaryFileReader = {};
 
-    DeSerialize();
+    binaryFileReader.fread(ilFile);
 
-    if ( symFile->Count() > 0 )
+    DeSerializeIL(&binaryFileReader);
+
+    if ( binaryFileReader.fread(symFile) )
     {
-        List<Byte> symbols = {};
-        if ( !symbols.fread(symFile->cStr()))
-        {
-            PrintIssue(4006, true, false, "Can't read symbol file %s", symFile->cStr());
-            return false;
-        }
-        int64_t position = 0;
-        while( position < symbols.Count() )
-        {
-            int64_t addr = GetInt(symbols, position);
-            GetString(symbols, position, &program[addr]->variableName);
-            GetString(symbols, position, &program[addr]->variableScriptName);
-        }
+        DeSerializeSymbols(&binaryFileReader);
     }
     else
     {
-        for(int ii=0; ii<program.Count(); ++ii)
-        {
-            switch( program[ii]->opcode )
-            {
-                case DEF: case DFL: case EFI:
-                case PVA: case DCS: case PCV:
-                case DEC: case INC:
-                case INL: case DEL: case PSV:
-                case SAV: case SVL: case PSL:
-                case PSP:
-                    program[ii]->variableName.printf((char *)"%llx", (long long int)program[ii]->operand);
-                default:
-                    break;
-            }
-        }
+        SetProgramLocationsAsSymbols();
     }
 
     return true;
@@ -1527,7 +1437,7 @@ void CPU::ExtendCollection(DslValue *collection, int64_t newEnd)
 
 void CPU::SetCollectionElementDirect(DslValue *dslValue)
 {
-    auto *var = program[dslValue->operand];
+    auto *var = instructions[dslValue->operand];
     U8String *key = var->indexes.keys[dslValue->iValue];
     auto *collection = ((DslValue *)var->indexes.Get(key)->Data());
     collection->SAV(&params[top]);
@@ -1585,34 +1495,9 @@ void CPU::PushVariableAddress(DslValue *variable)
 
 int64_t CPU::GetEventLocation(SystemErrorHandlers errorHandler, int64_t moduleId)
 {
-    switch( errorHandler )
-    {
-        case ON_NONE:
-            break;
-        case ON_ERROR:
-            break;
-        case ON_KEY_DOWN:
-            break;
-        case ON_KEY_UP:
-            break;
-        case ON_LEFT_DRAG:
-            break;
-        case ON_LEFT_UP:
-            break;
-        case ON_LEFT_DOWN:
-            break;
-        case ON_RIGHT_DRAG:
-            break;
-        case ON_RIGHT_UP:
-            break;
-        case ON_RIGHT_DOWN:
-            break;
-        case ON_TICK:
-            break;
-    }
 
 //    DslValue *onError = program[base + (10 * (instruction->moduleId-1))];
-//    handlerLocation = onError->location;
+//    handlerLocation = onError->position;
 
     return 0;
 }
@@ -1622,16 +1507,16 @@ void CPU::JumpToOnErrorHandler()
 {
     auto totalParams = params[top].iValue;
 
-    DslValue *instruction = program[PC];
+    DslValue *instruction = instructions[PC];
 
-    int64_t base = program[0]->location;
+    int64_t base = instructions[0]->location;
 
     int64_t onErrorLocation = GetEventLocation(ON_ERROR, instruction->moduleId);
 
     if ( onErrorLocation == 0 )
     {
         printf("%s", szErrorMsg.cStr());
-        PC = program.Count();
+        PC = instructions.Count();
         return;
     }
 
@@ -1640,9 +1525,9 @@ void CPU::JumpToOnErrorHandler()
     BP = top - totalParams;
     PC = onErrorLocation;
 
-    while(PC < program[0]->location )
+    while(PC < instructions[0]->location )
     {
-        DslValue *dslValue = program[PC++];
+        DslValue *dslValue = instructions[PC++];
         //If return from on error handler.
         if ( dslValue->opcode == RET )
         {
@@ -1702,14 +1587,14 @@ void CPU::JumpToOnTick()
     int64_t stop = top;
     pSave.CopyFrom(&params);
 
-    DslValue *instruction = program[PC++];
+    DslValue *instruction = instructions[PC++];
     while( instruction->opcode != RFE )
     {
         if (!RunInstruction(instruction))
         {
             break;
         }
-        instruction = program[PC++];
+        instruction = instructions[PC++];
     }
     PC = pcReturn;
     BP = sBP;
@@ -1724,11 +1609,9 @@ bool CPU::RunInstruction(DslValue *dslValue)
     switch( dslValue->opcode )
     {
         case END:
-            PC = program.Count();
+            PC = instructions.Count();
             return false;
-        case CID:
-            break;
-        case EFI: case DEF: case NOP: case PSP: case RFE:
+        case CID: case EFI: case DEF: case NOP: case PSP: case RFE:
             break;
         case SLV:
             params[BP+params[top - 1].operand].SAV(&params[top]);
@@ -1763,10 +1646,10 @@ bool CPU::RunInstruction(DslValue *dslValue)
             SetCollectionElementDirect(dslValue);
             break;
         case PVA:
-            PushVariableAddress(program[dslValue->operand]);
+            PushVariableAddress(instructions[dslValue->operand]);
             break;
         case PCV:
-            dslValue = GetCollectionElement(program[dslValue->operand]);
+            dslValue = GetCollectionElement(instructions[dslValue->operand]);
             params[++top].LiteCopy(dslValue);
             params[top].elementAddress = dslValue;
             break;
@@ -1838,10 +1721,10 @@ bool CPU::RunInstruction(DslValue *dslValue)
             params[BP+dslValue->operand].DEC();
             break;
         case INC:
-            program[dslValue->operand]->INC();
+            instructions[dslValue->operand]->INC();
             break;
         case DEC:
-            program[dslValue->operand]->DEC();
+            instructions[dslValue->operand]->DEC();
             break;
         case NOT:
             params[top].NOT();
@@ -1880,7 +1763,7 @@ bool CPU::RunInstruction(DslValue *dslValue)
             params[++top].LiteCopy(dslValue);
             break;
         case PSV:
-            params[++top].LiteCopy(program[dslValue->operand]);
+            params[++top].LiteCopy(instructions[dslValue->operand]);
             break;
         case DFL:
             params.push_back(DslValue(DFL, params.Count()));
@@ -1907,7 +1790,7 @@ void CPU::RunNoTrace()
     bool errorMode = false;
     bool onTickCalled = false;
 
-    int64_t programEnd = program[0]->location;
+    int64_t programEnd = instructions.Count();
 
     while(PC < programEnd )
     {
@@ -1925,7 +1808,7 @@ void CPU::RunNoTrace()
 
         JumpToOnTick();
 
-        if( !RunInstruction(program[PC++]) )
+        if( !RunInstruction(instructions[PC++]) )
         {
             break;
         }
@@ -1939,14 +1822,14 @@ void CPU::RunTrace()
     bool errorMode = false;
     bool onTickCalled = false;
 
-    int64_t programEnd = program[0]->location;
+    int64_t programEnd = instructions.Count();
 
     putchar('\n');
     while(PC < programEnd )
     {
-        DisplayASMCodeLine(PC, false);
+        DisplayASMCodeLine(instructions, PC, false);
 
-        DslValue *instruction = program[PC++];
+        DslValue *instruction = instructions[PC++];
         switch( GetInstructionOperands(instruction, &left, &right) )
         {
             case 0:
@@ -2008,7 +1891,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
         case DCS:
         {
             right = &params[top];
-            auto *var = program[instruction->operand];
+            auto *var = instructions[instruction->operand];
             auto *key = var->indexes.keys[instruction->iValue];
             left = ((DslValue *)var->indexes.Get(key)->Data());
             operands = 2;
@@ -2016,7 +1899,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
         }
         case PVA:
         {
-            left = program[instruction->operand];
+            left = instructions[instruction->operand];
             if (left->type == COLLECTION )
             {
                 left = GetCollectionElement(left);
@@ -2025,7 +1908,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             break;
         }
         case PCV:
-            left = GetCollectionElement(program[instruction->operand]);
+            left = GetCollectionElement(instructions[instruction->operand]);
             left->elementAddress = left;
             operands = 1;
             break;
@@ -2034,7 +1917,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             operands = 1;
             break;
         case INC: case DEC:
-            left = program[instruction->operand];
+            left = instructions[instruction->operand];
             operands = 1;
             break;
         case NOT: case NEG: case CTI: case CTD: case CTC: case CTS: case CTB:
@@ -2055,7 +1938,7 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             operands = 1;
             break;
         case PSV:
-            left = program[instruction->operand];
+            left = instructions[instruction->operand];
             operands = 1;
             break;
         case DFL:
@@ -2100,7 +1983,6 @@ CPU::CPU()
     nextTick = clock() + TICKS_PER_SECOND;
     lastModuleId = 1;
     onTickEvent = 0;
-    IL.Clear();
     instructions.Clear();
 }
 

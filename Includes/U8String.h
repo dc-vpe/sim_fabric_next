@@ -155,7 +155,7 @@ public:
     u8chr get(size_t index);
 
     /// \desc Sets a single u8chr to the string at index.
-    /// \param index Value of the location to set the character to.
+    /// \param index Value of the position to set the character to.
     /// \param ch character to set.
     /// \return True if the operation succeeds, else false if the index is out of range.
     bool set(size_t index, u8chr ch);
@@ -237,11 +237,11 @@ public:
         return CompareAt(cString, ignoreCase, len, 0);
     }
 
-    /// \desc Checks if the cString is at the location in this string.
+    /// \desc Checks if the cString is at the position in this string.
     /// \param cString string to look for.
     /// \param ignoreCase True if the check should ignore case, else false.
     /// \param len length of cString.
-    /// \param s location in cString to check.
+    /// \param s position in cString to check.
     bool CompareAt(const char *cString, bool ignoreCase, int64_t len, int64_t s);
 
     /// \desc Provides printf style string creation for the U8String.

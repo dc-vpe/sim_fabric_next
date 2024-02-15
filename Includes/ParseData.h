@@ -58,10 +58,10 @@ extern int64_t           errors;     //number of errors, if zero no errors happe
 extern int64_t           warnings;   //number of warnings, if 0 no warnings happened.
 extern bool          fatal; //True if a fatal error occurs.
 
-/// \desc current location information.
+/// \desc current position information.
 extern LocationInfo  locationInfo;
 
-/// \desc Previous location information.
+/// \desc Previous position information.
 extern LocationInfo  previousInfo;
 
 //Total test cases run.

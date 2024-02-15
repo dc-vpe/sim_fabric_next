@@ -57,7 +57,7 @@ public:
         return array[index];
     }
 
-    /// \desc Sets the type into the list at the index location. The list is extended as needed.
+    /// \desc Sets the type into the list at the index position. The list is extended as needed.
     /// \param index Value where the type should be placed.
     /// \param type Type to place in the list at index.
     /// \return True if successful, false if out of memory.

@@ -33,10 +33,10 @@ int64_t errors;     //number of errors, if zero no errors happened.
 int64_t warnings;   //number of warnings, if 0 no warnings happened.
 bool fatal; //True if a fatal error occurs.
 
-/// \desc Current lexer location information.
+/// \desc Current lexer position information.
 LocationInfo locationInfo;
 
-/// \desc Previous lexer location information.
+/// \desc Previous lexer position information.
 LocationInfo  previousInfo;
 
 /// \desc Lexer information level to display.

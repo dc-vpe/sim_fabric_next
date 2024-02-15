@@ -202,13 +202,13 @@ void Parser::PushValue(Token *token)
     }
 
     //This is a variable or collection.
-    //Note: Variable has the location of the defined variable in the generated program.
+    //Note: Variable has the position of the defined variable in the generated program.
     //This is true for collections as well. Event in the non-static initialization case
     //the collection element will have a default value added as a placeholder.
     OutputCode(token, token->value->opcode);
 }
 
-/// \desc Creates a variable definition within the output IL and sets the tokens operand 1 to the location
+/// \desc Creates a variable definition within the output IL and sets the tokens operand 1 to the position
 ///       of the variable within the programs IL.
 /// \param token Token containing the information about the variable.
 void Parser::CreateVariable(Token *token)
@@ -771,7 +771,7 @@ Token *Parser::Expression(int64_t tokenLocation)
             case IF_BLOCK_END:
             {
                 int64_t jmp = ifJumpLocations.pop_back();
-                //update jump location to correct location after block end
+                //update jump position to correct position after block end
                 if ( !output.IsEmpty() && output.Peek(0)->type == ELSE_BLOCK_BEGIN )
                 {
                     program[jmp]->location = program.Count() + 1;
