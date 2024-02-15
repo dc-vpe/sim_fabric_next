@@ -5,15 +5,6 @@
 //
 
 #include "../Includes/cpu.h"
-#include "../Includes/JsonParser.h"
-#include <cmath>
-#include <cctype>
-#include <dirent.h>
-#include <ctime>
-
-#ifdef __linux__
-#include <cerrno>
-#endif
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
@@ -82,6 +73,45 @@ const char *OpCodeNames[] =
 
 int64_t  CPU::errorCode;
 U8String CPU::szErrorMsg;
+
+
+/////////////////////////////////////////////////////
+/// library allows adding external function calls ///
+/////////////////////////////////////////////////////
+
+int64_t totalParameters = -1;
+
+int64_t OpenParameterStack(CPU *cpu)
+{
+    if ( totalParameters == -1 )
+    {
+        totalParameters = cpu->params[cpu->top].iValue;
+    }
+
+    return totalParameters;
+}
+
+void CloseParameterStack(CPU *cpu, DslValue *returnValue)
+{
+    cpu->top -= totalParameters + 1;
+    ++cpu->top;
+    cpu->params[cpu->top].LiteCopy(returnValue);
+
+    totalParameters = -1;
+}
+
+DslValue *GetParameter(CPU *cpu, int64_t number)
+{
+    DslValue *v = &cpu->params[(cpu->top - totalParameters) + number];
+    return &cpu->params[(cpu->top - totalParameters) + number];
+}
+
+/*
+ * library: c:\function\math.lib
+ * function(param, param)
+ */
+
+/////////////////////////////////////////////////////
 
 void CPU::DisplayASMCodeLines(List<DslValue *> &programInstructions)
 {
@@ -197,6 +227,11 @@ void CPU::Error(DslValue *dslError)
     dslError->Print(false);
 }
 
+/// \desc Checks if the ch character is a match for the expression character.
+/// \param ch character to check.
+/// \param ex expression character that defines how the ch character should be checked.
+/// \param caseLessCompare True if the compare should occur in a case agnostic manner,
+///                        or false if the compare should occur in a case sensitive manner.
 bool CPU::IsMatch(u8chr ch, u8chr ex, bool caseLessCompare)
 {
     switch( ex )
@@ -220,6 +255,11 @@ bool CPU::IsMatch(u8chr ch, u8chr ex, bool caseLessCompare)
     }
 }
 
+/// \desc Gets an expression character from an expression string.
+/// \param expression U8String containing the search expression string.
+/// \param offset Offset within the expression string at which to get the character.
+///               The offset is set to the next expression character upon return.
+/// \return The expression character without the leading % escape character.
 u8chr CPU::GetExChar(U8String *expression, int64_t &offset)
 {
     u8chr ex = expression->get(offset++);
@@ -231,6 +271,40 @@ u8chr CPU::GetExChar(U8String *expression, int64_t &offset)
     return ex;
 }
 
+/// \desc Checks to see if the expression is contained in the search string beginning at the start
+///       character location.
+/// \param search Pointer to a U8String containing the characters to be searched.
+/// \param expression Pointer to a U8String containing the expression that specifies the expression
+///                   to be searched for.
+/// \param start The character location within the search string at which the search should begin.
+/// \returns The character location within search that the expression was found or -1 if the
+///          expression was not found beginning at start up to the end of the search string.
+/// \remarks The expression string consists of characters with the % character used to
+///          indicate a special type of compare.
+///          The % character is used in the expression string to indicate that the next character
+///          represents one of the character sets in the table shown here:
+///             Code	Description	            Finds characters	            C equivalent function
+///             %C	    Control characters	    0x00 though 0x1F and 0x7F	    Iscntrl()
+///             %B	    Blank characters	    ‘\t’ and ‘ ‘	                Isblank()
+///             %S	    Space characters	    ‘\t’, ‘\n’, ‘\f’, ‘\v’, ‘\r’    Isspace()
+///             %U	    Upper case letter	    ABCDEFGHIJKLMNOPQRSTUVWXYZ	    Isupper()
+///             %u	    Lower case letter	    abcdefghijklmnopqrstuvwxyz	    Islower()
+///             %A	    Any letter	ABCDEFGHIJKLMNOPQRSTUVWXYZ
+///                                 abcdefghijklmnopqrstuvwxyz	                Isalpha()
+///             %D	    Any digit	0123456789	                                Isdigit()
+///             %N	    Any letter or digit	ABCDEFGHIJKLMNOPQRSTUVWXYZ
+///                                         Abcdefghijklmnopqrstuvwxyz
+///                                         0123456789	                        Isalnum()
+///             %P	Any punctuation	!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~	        Ispunct()
+///             %G	Any character that can be seen when displayed.
+///                 !"#$%&'()*+,-.0123456789:;<=>?
+///                 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`
+///                 Abcdefghijklmnopqrstuvwxyz{|}~	                            Isgraph()
+///             %p	Any printable character	!"#$%&'()*+,-./0123456789
+///                 :;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`
+///                 Abcdefghijklmnopqrstuvwxyz{|}~	                            Isprint()
+///             %X	Any hexadecimal digit	0123456789ABCDEFabcdef.             Isxdigit()
+///             %?	Wild card matches any character at its position.
 int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
 {
     if ( start < 0 || start >= search->Count() )
@@ -286,34 +360,6 @@ int64_t CPU::Find(U8String *search, U8String *expression, int64_t start)
     return -1;
 }
 
-/// \desc Gets the total parameters sent to a function.
-/// \return The total parameters sent to a function.
-/// \remark The last value pushed onto the param stack is always the
-///         number of parameters passed to the function. In the DSL
-///         all functions accept variable number of parameters.
-int64_t CPU::GetTotalParams()
-{
-    return params[top].iValue;
-}
-
-/// \desc Returns the result of a built in function. Functions always return a result.
-/// The result is placed on the top of the stack.
-void CPU::ReturnResult(int64_t totalParams, DslValue *returnValue)
-{
-    top -= totalParams + 1;
-    params[++top].LiteCopy(returnValue);
-}
-
-/// \desc Gets a single parameter.
-/// \param totalParams total parameters this is the same value provided to Get Total Parameters.
-/// \param index Index of the parameter to get. The first parameter is param index 0.
-/// \return Pointer to the parameter.
-DslValue *CPU::GetParam(int64_t totalParams, int64_t index)
-{
-    DslValue *v = &params[(top-totalParams) + index];
-    return &params[(top-totalParams) + index];
-}
-
 /// \desc Reads a file current using the local file system. The file is returned
 ///       int the A dsl value. In case of an error the A dsl value will contain
 ///       an error.
@@ -345,6 +391,11 @@ bool CPU::ReadFile(U8String *file, U8String *output)
     return true;
 }
 
+/// \desc Creates a sub string from the search string.
+/// \param search String containing the characters from which to build the sub string.
+/// \param result String that will contain the sub string.
+/// \param start Starting character location in the search string.
+/// \param length Number of characters to copy from the search string to the result string.
 void CPU::Sub(U8String *search, U8String *result, int64_t start, int64_t length)
 {
     if ( start >= 0 && start < search->Count() )
@@ -362,7 +413,9 @@ void CPU::Sub(U8String *search, U8String *result, int64_t start, int64_t length)
 
 }
 
-/// \desc Gets the character length of the expression.
+/// \desc Calculates the number of characters in a search expression.
+/// \param expression Pointer to a U8String that contains the regular expression.
+/// \return The number of characters in the search expression string.
 int64_t CPU::ExpressionLength(U8String *expression)
 {
     int64_t length = 0;
@@ -383,11 +436,11 @@ int64_t CPU::ExpressionLength(U8String *expression)
 // Region builtin callable functions.
 void CPU::pfn_string_find()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2 = GetParam(totalParams, 0);
-    auto *param3 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2 = GetParameter(this, 1);
+    auto *param3 = GetParameter(this, 2);
 
     //string to search
     param1->Convert(STRING_VALUE);
@@ -406,28 +459,29 @@ void CPU::pfn_string_find()
     A->type = INTEGER_VALUE;
     A->iValue = Find(&search, &expression, start);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_len()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
 
     param1->Convert(STRING_VALUE);
     A->iValue = (int64_t)param1->sValue.Count();
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
+
 void CPU::pfn_string_sub()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2= GetParam(totalParams, 1);
-    auto *param3= GetParam(totalParams, 2);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2= GetParameter(this, 1);
+    auto *param3= GetParameter(this, 2);
 
     A->type = STRING_VALUE;
     A->sValue.Clear();
@@ -440,16 +494,16 @@ void CPU::pfn_string_sub()
     param3->Convert(INTEGER_VALUE);
     Sub(&param1->sValue, &A->sValue, param2->iValue, param3->iValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_replace()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2= GetParam(totalParams, 1);
-    auto *param3= GetParam(totalParams, 2);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2= GetParameter(this, 1);
+    auto *param3= GetParameter(this, 2);
 
     //string to search
     param1->Convert(STRING_VALUE);
@@ -492,15 +546,15 @@ void CPU::pfn_string_replace()
         }
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_tolower()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     //string to search
-    auto  *param1 = GetParam(totalParams, 0);
+    auto  *param1 = GetParameter(this, 0);
     param1->Convert(STRING_VALUE);
     U8String search;
     search.CopyFrom(&param1->sValue);
@@ -515,15 +569,15 @@ void CPU::pfn_string_tolower()
         A->sValue.push_back(ch);
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_toupper()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     //string to search
-    auto *param1 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
     param1->Convert(STRING_VALUE);
     U8String search;
     search.CopyFrom(&param1->sValue);
@@ -538,15 +592,15 @@ void CPU::pfn_string_toupper()
         A->sValue.push_back(ch);
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_trimEnd()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2= GetParam(totalParams, 1);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2= GetParameter(this, 1);
 
     //string to search
     param1->Convert(STRING_VALUE);
@@ -580,15 +634,15 @@ void CPU::pfn_string_trimEnd()
         A->sValue.push_back(ch);
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_trimStart()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2= GetParam(totalParams, 1);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2= GetParameter(this, 1);
 
     //string to search
     param1->Convert(STRING_VALUE);
@@ -622,15 +676,15 @@ void CPU::pfn_string_trimStart()
         A->sValue.push_back(ch);
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_toCollection()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     //String to convert to a collection.
-    auto *param1 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
     param1->Convert(STRING_VALUE);
     U8String jsonString;
     jsonString.CopyFrom(&param1->sValue);
@@ -645,25 +699,25 @@ void CPU::pfn_string_toCollection()
 
     A->SAV(json);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_string_fromCollection()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = STRING_VALUE;
-    GetParam(totalParams, 0)->AppendAsJsonText(&A->sValue);
+    GetParameter(this, 0)->AppendAsJsonText(&A->sValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_abs()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
 
 #ifdef __linux__
@@ -672,246 +726,246 @@ void CPU::pfn_abs()
     A->dValue = std::abs(param->dValue);
 #endif
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_acos()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = acos(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_asin()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = asin(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_atan()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = atan(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_atan2()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2= GetParam(totalParams, 1);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2= GetParameter(this, 1);
 
     param1->Convert(DOUBLE_VALUE);
     param2->Convert(DOUBLE_VALUE);
     A->type = DOUBLE_VALUE;
     A->dValue = atan2(param1->dValue, param2->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_cos()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = cos(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_sin()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = sin(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_tan()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = tan(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_cosh()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = cosh(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_sinh()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = sinh(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_tanh()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = tanh(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_exp()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = exp(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_log()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = log(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_log10()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = log10(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_sqrt()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = sqrt(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_ceil()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = ceil(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_fabs()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = fabs(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_floor()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = DOUBLE_VALUE;
-    auto *param = GetParam(totalParams, 0);
+    auto *param = GetParameter(this, 0);
     param->Convert(DOUBLE_VALUE);
     A->dValue = floor(param->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_fmod()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
-    auto *param2= GetParam(totalParams, 1);
-    auto *param3= GetParam(totalParams, 2);
+    auto *param1 = GetParameter(this, 0);
+    auto *param2= GetParameter(this, 1);
+    auto *param3= GetParameter(this, 2);
 
     param1->Convert(DOUBLE_VALUE);
     param2->Convert(DOUBLE_VALUE);
     A->type = DOUBLE_VALUE;
     A->dValue = fmod(param1->dValue, param2->dValue);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_print()
 {
     DslValue dslValue;
 
-    auto totalParams = GetTotalParams();
+    int64_t totalParams = OpenParameterStack(this);
 
     for(int64_t ii=0; ii<totalParams; ++ii)
     {
-        GetParam(totalParams, ii)->Print(false);
+        GetParameter(this, ii)->Print(false);
     }
 
     A->type = INTEGER_VALUE;
     A->iValue = 0;
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_printf()
@@ -921,7 +975,7 @@ void CPU::pfn_printf()
 
 void CPU::pfn_input()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     printf(">");
     char szBuffer[1024];
@@ -935,14 +989,14 @@ void CPU::pfn_input()
     A->type = STRING_VALUE;
     A->sValue.CopyFromCString(szBuffer);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_read()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
-    auto *param1 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
     param1->Convert(STRING_VALUE);
 
     U8String output = {};
@@ -962,14 +1016,14 @@ void CPU::pfn_read()
         A->SAV(json);
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::WriteFile(U8String *fileName, int64_t totalParams)
 {
     for(int64_t ii=1; ii<totalParams; ++ii)
     {
-        GetParam(totalParams, ii)->AppendAsJsonText(&A->sValue);
+        GetParameter(this, ii)->AppendAsJsonText(&A->sValue);
     }
 
     FILE *fp = fopen(fileName->cStr(), "w+");
@@ -994,12 +1048,12 @@ void CPU::WriteFile(U8String *fileName, int64_t totalParams)
 
 void CPU::pfn_write()
 {
-    auto totalParams = GetTotalParams();
+    auto totalParams = OpenParameterStack(this);
 
     A->type = STRING_VALUE;
     A->sValue.Clear();
 
-    auto *param1 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
 
     U8String fileName;
     fileName.CopyFrom(&param1->sValue);
@@ -1021,22 +1075,22 @@ void CPU::pfn_write()
         WriteFile(&fileName, totalParams);
     }
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_files()
 {
-    auto totalParams= GetTotalParams();
+    auto totalParams= OpenParameterStack(this);
 #ifndef linux
     bool open = false;
     if ( totalParams >= 2 )
     {
-        auto *tmp = GetParam(totalParams, 1);
+        auto *tmp = GetParameter(this, 1);
         tmp->Convert(BOOL_VALUE);
         open = tmp->bValue;
     }
 
-    auto *param1 = GetParam(totalParams, 0);
+    auto *param1 = GetParameter(this, 0);
 
     param1->Convert(STRING_VALUE);
     DIR *dir = opendir(param1->sValue.cStr());
@@ -1080,7 +1134,7 @@ void CPU::pfn_files()
                     A->type = STRING_VALUE;
                     A->sValue.CopyFrom(&text);
                     Error(A);
-                    ReturnResult(totalParams, A);
+                    CloseParameterStack(this, A);
                     return;
                 }
                 if (file->EndsWith(".json", false))
@@ -1091,7 +1145,7 @@ void CPU::pfn_files()
                     {
                         json->type = STRING_VALUE;
                         Error(json);
-                        ReturnResult(totalParams, json);
+                        CloseParameterStack(this, json);
                         return;
                     }
                     files->indexes.Set(keyData[ii]->Key(), json);
@@ -1108,18 +1162,18 @@ void CPU::pfn_files()
         }
     }
 #endif
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 void CPU::pfn_delete()
 {
-    auto totalParams= GetTotalParams();
+    auto totalParams= OpenParameterStack(this);
 
     A->type = STRING_VALUE;
     A->sValue.CopyFromCString("Not Implemented");
     Error(A);
 
-    ReturnResult(totalParams, A);
+    CloseParameterStack(this, A);
 }
 
 //Random number generator constants.
@@ -1958,6 +2012,8 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
     return operands;
 }
 
+/// \desc Ensures that the on tick event pointer is set to the correct module function.
+/// \param dslValue Instruction about to be run.
 void CPU::SetTickEvent(DslValue *dslValue)
 {
     if ( lastModuleId == dslValue->moduleId )
@@ -1971,12 +2027,12 @@ void CPU::SetTickEvent(DslValue *dslValue)
     }
 }
 
+/// \desc Class constructor.
 CPU::CPU()
 {
     PC = 0;
     top = 0;
     BP = 0;
-    SP.clear();
     A = new DslValue();
     params.Clear();
     errorCode = 0;

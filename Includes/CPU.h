@@ -1,21 +1,34 @@
 //
 // Created by krw10 on 8/25/2024.
 //
-//
-
+// Software CPU forms the runtime engine for the DSL
 
 #ifndef DSL_CPP_CPU_H
 #define DSL_CPP_CPU_H
 
+#include <cmath>
+#include <cctype>
+#include <dirent.h>
+#include <ctime>
+#ifdef __linux__
+#include <cerrno>
+#endif
 #include "DslValue.h"
-#include "ParseData.h"
-#include "../Includes/Stack.h"
-#include "../Includes/List.h"
+#include "SystemErrorHandlers.h"
+#include "Stack.h"
+#include "List.h"
 #include "BinaryFileReader.h"
+#include "JsonParser.h"
+
 
 /// \desc TICKS are every 1/10th of a second.
 #define TICKS_PER_SECOND 100
 
+/// \desc The CPU class forms a software CPU runtime engine for a compiled program. The CPU
+///       reads a serialized set if intermediate language instructions consisting of an
+///       opcode and any data needed by the opcode to perform its function. The deserialized
+///       instructions are stored in an instructions list which is then executed in a manner
+///       similar to how a hardware CPU would run.
 class CPU
 {
 public:
@@ -40,18 +53,8 @@ public:
     }
 
     /// \desc Displays the lines of code in the program.
+    /// \param programInstructions list of dsl values containing the compiled program.
     static void DisplayASMCodeLines(List<DslValue *> &programInstructions);
-
-    /// \desc Deserializes the program symbol file and adds those symbols to the
-    ///       internal program.
-    /// \param binaryFileReader Pointer to the binary file reader to use.
-    /// \return True if the symbols are added to the program, false if the symbol
-    ///         file does not exist or can't be read.
-    bool DeSerializeSymbols(BinaryFileReader *binaryFileReader);
-
-    /// \desc Adds the locations used in the program as its symbols. Used when the symbol file
-    ///       can't be read or is not present.
-    void SetProgramLocationsAsSymbols();
 
     /// \desc Initializes the CPU to run the program.
     /// \param ilFile Pointer to a u8String containing the full path name to the compiled il program.
@@ -68,31 +71,139 @@ public:
     /// \desc built in array of function pointers. Order is same as lexers built in function names list.
     typedef void (CPU::*method_function)();
 
+    /// \desc This list is the parameter stack used for calculations and parameter passing to string and
+    ///       native functions.
+    List<DslValue> params;
+
+    /// \desc Top of the parameter stack.
+    /// \remark The reason a separate top of stack value is used instead
+    ///         of the push back pop back method within list is for performance. Using a separate
+    ///         top of stack indicator allows calculations to be processed directly which measured
+    ///         out to be 10x faster as calculation data can be processed in place without the
+    ///         need for additional stack management instructions.
+    int64_t top;
+
+    /// \desc The default return value register. Used for temporary value storage.
+    /// /\remark This value can be overwritten so assume this register is only valid
+    ///           within the current function or method in which it is used.
+    DslValue *A;
+
 private:
+    /// \desc Stack frame for local variables defined, passed and used within DSL function calls.
+    int64_t BP;
 
-    int64_t        BP; //stack frame register for local variables.
-    int64_t        PC; //program instruction counter.
-    Stack<int64_t> SP{};    //Call and return stack.
-    List<DslValue> params;  //function call parameters stack
-    int64_t        top;   //top of params stack
-    DslValue       *A;  //Temporary A register storage.
-    long           nextTick; //next on text time
-    int64_t        lastModuleId; //last module id changes with the instruction being executed
-    int64_t        onTickEvent; //tracks the last tick event set, this changes when the instructions module changes.
-    List<DslValue *> instructions = {};   //The actual instructions that are run.
+    /// \desc Instruction pointer, always points at the next instruction to be executed.
+    int64_t PC;
 
+    /// \desc Time at which the next on tick event call should occur.
+    long nextTick;
+
+    /// \desc Module id of the last instruction to be executed.
+    int64_t lastModuleId;
+
+    /// \desc The cached index of the currently set on tick function location. This is changed right
+    ///       before the instruction which has a different module id is executed.
+    int64_t onTickEvent;
+
+    /// \desc This list contains the instructions that make up the program that is being executed by
+    ///       this CPU. Multiple CPUs can all be running programs at the same time without
+    ///       without conflicting with each other.
+    List<DslValue *> instructions = {};   //The deserialized program instructions to execute.
+
+    /// \desc last error code that was raised.
     static int64_t  errorCode;
-    static U8String szErrorMsg;
-    List<DslValue>  eventHandlers; //Event function information in module id order.
 
+    /// \desc last error message that was raised.
+    static U8String szErrorMsg;
+
+    /// \desc Reads a file current using the local file system. The file is returned
+    ///       int the A dsl value. In case of an error the A dsl value will contain
+    ///       an error.
+    /// \param file position to read the file from.
+    /// \param output U8String to write the contents of the file to.
+    /// \return True if successful, else false if an error occurs.
     static bool ReadFile(U8String *file, U8String *output);
+
+    /// \desc Raised an error event, currently only prints but will be changed as soon
+    ///       as the eventing system is in place.
     static void Error(DslValue *error);
+
+    /// \desc Checks if the ch character is a match for the expression character.
+    /// \param ch character to check.
+    /// \param ex expression character that defines how the ch character should be checked.
+    /// \param caseLessCompare True if the compare should occur in a case agnostic manner,
+    ///                        or false if the compare should occur in a case sensitive manner.
     static bool IsMatch(u8chr ch, u8chr ex, bool caseLessCompare);
+
+    /// \desc Gets an expression character from an expression string.
+    /// \param expression U8String containing the search expression string.
+    /// \param offset Offset within the expression string at which to get the character.
+    ///               The offset is set to the next expression character upon return.
+    /// \return The expression character without the leading % escape character.
     static u8chr GetExChar(U8String *expression, int64_t &offset);
+
+    /// \desc Checks to see if the expression is contained in the search string beginning at the start
+    ///       character location.
+    /// \param search Pointer to a U8String containing the characters to be searched.
+    /// \param expression Pointer to a U8String containing the expression that specifies the expression
+    ///                   to be searched for.
+    /// \param start The character location within the search string at which the search should begin.
+    /// \returns The character location within search that the expression was found or -1 if the
+    ///          expression was not found beginning at start up to the end of the search string.
+    /// \remarks The expression string consists of characters with the % character used to
+    ///          indicate a special type of compare.
+    ///          The % character is used in the expression string to indicate that the next character
+    ///          represents one of the character sets in the table shown here:
+    ///             Code	Description	            Finds characters	            C equivalent function
+    ///             %C	    Control characters	    0x00 though 0x1F and 0x7F	    Iscntrl()
+    ///             %B	    Blank characters	    ‘\t’ and ‘ ‘	                Isblank()
+    ///             %S	    Space characters	    ‘\t’, ‘\n’, ‘\f’, ‘\v’, ‘\r’    Isspace()
+    ///             %U	    Upper case letter	    ABCDEFGHIJKLMNOPQRSTUVWXYZ	    Isupper()
+    ///             %u	    Lower case letter	    abcdefghijklmnopqrstuvwxyz	    Islower()
+    ///             %A	    Any letter	ABCDEFGHIJKLMNOPQRSTUVWXYZ
+    ///                                 abcdefghijklmnopqrstuvwxyz	                Isalpha()
+    ///             %D	    Any digit	0123456789	                                Isdigit()
+    ///             %N	    Any letter or digit	ABCDEFGHIJKLMNOPQRSTUVWXYZ
+    ///                                         Abcdefghijklmnopqrstuvwxyz
+    ///                                         0123456789	                        Isalnum()
+    ///             %P	Any punctuation	!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~	        Ispunct()
+    ///             %G	Any character that can be seen when displayed.
+    ///                 !"#$%&'()*+,-.0123456789:;<=>?
+    ///                 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`
+    ///                 Abcdefghijklmnopqrstuvwxyz{|}~	                            Isgraph()
+    ///             %p	Any printable character	!"#$%&'()*+,-./0123456789
+    ///                 :;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`
+    ///                 Abcdefghijklmnopqrstuvwxyz{|}~	                            Isprint()
+    ///             %X	Any hexadecimal digit	0123456789ABCDEFabcdef.             Isxdigit()
+    ///             %?	Wild card matches any character at its position.
     static int64_t Find(U8String *search, U8String *expression, int64_t start);
+
+    /// \desc Creates a sub string from the search string.
+    /// \param search String containing the characters from which to build the sub string.
+    /// \param result String that will contain the sub string.
+    /// \param start Starting character location in the search string.
+    /// \param length Number of characters to copy from the search string to the result string.
     static void Sub(U8String *search, U8String *result, int64_t start, int64_t length);
+
+    /// \desc Calculates the number of characters in a search expression.
+    /// \param expression Pointer to a U8String that contains the regular expression.
+    /// \return The number of characters in the search expression string.
     static int64_t ExpressionLength(U8String *expression);
+
+    /// \desc Ensures that the on tick event pointer is set to the correct module function.
+    /// \param dslValue Instruction about to be run.
     void SetTickEvent(DslValue *dslValue);
+
+    /// \desc Deserializes the program symbol file and adds those symbols to the
+    ///       internal program.
+    /// \param binaryFileReader Pointer to the binary file reader to use.
+    /// \return True if the symbols are added to the program, false if the symbol
+    ///         file does not exist or can't be read.
+    bool DeSerializeSymbols(BinaryFileReader *binaryFileReader);
+
+    /// \desc Adds the locations used in the program as its symbols. Used when the symbol file
+    ///       can't be read or is not present.
+    void SetProgramLocationsAsSymbols();
 
     /// \desc Calls one of the standard built in functions.
     void JumpToBuiltInFunction(DslValue *dslValue);
@@ -160,33 +271,14 @@ private:
     /// \param variable Pointer to the variable containing the push variable address instruction.
     void PushVariableAddress(DslValue *variable);
 
-
-//Standard library function.
-public:
-    /// \desc First call gets the total number of parameters passed to the function.
-    /// \return Gets the total number of parameters passed to the external function.
-    /// \Remark These functions form the API for accessing parameters passed to an
-    ///         external function.
-    int64_t GetTotalParams();
-
-    /// \desc Gets a parameter passed to the external function.
-    /// \param totalParams total number of parameters passed to the function, this
-    ///                    value is returned from Get Total Parameters.,
-    /// \param index       Index of the parameter to get. Parameters begin at 0
-    ///                    and are passed from left to right in CDECL style.
-    DslValue *GetParam(int64_t totalParams, int64_t index);
-
-    /// \desc Returns the provided result to the run time.
-    /// \param totalParams total number of parameters passed to the function, this
-    ///                    value is returned from Get Total Parameters.,
-    /// \param returnValue Pointer to the dslValue to return from the function. If
-    ///                    the external function does not return a value then this
-    ///                    should be set to INTEGER_VALUE of 0.
-    void ReturnResult(int64_t totalParams, DslValue *returnValue);
-
     /// \desc Write local file.
     void WriteFile(U8String *fileName, int64_t totalParams);
 
+public:
+
+    ///////////////////////////////////////////////////////////////////
+    // Built-in functions that are considered part of the language. ///
+    ///////////////////////////////////////////////////////////////////
     void pfn_string_find();
     void pfn_string_len();
     void pfn_string_sub();

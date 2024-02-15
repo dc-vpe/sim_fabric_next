@@ -2,6 +2,7 @@
 #define DSL_PARSER_H
 
 #include "dsl_types.h"
+#include "SystemErrorHandlers.h"
 #include "Hashmap.h"
 #include "Lexer.h"
 #include "Queue.h"
