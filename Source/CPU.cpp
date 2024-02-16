@@ -128,7 +128,7 @@ int64_t CPU::DisplayASMCodeLine(List<DslValue *> &programInstructions, int64_t a
 {
     DslValue *dslValue = programInstructions[addr];
 
-    printf("%4.4ld\t%s", (long)addr, OpCodeNames[dslValue->opcode]);
+    printf("%4.4llx\t%s", addr, OpCodeNames[dslValue->opcode]);
     switch(dslValue->opcode)
     {
         case CID:
@@ -410,7 +410,6 @@ void CPU::Sub(U8String *search, U8String *result, int64_t start, int64_t length)
             result->push_back(ch);
         }
     }
-
 }
 
 /// \desc Calculates the number of characters in a search expression.
@@ -1345,10 +1344,11 @@ void CPU::DeSerializeIL(BinaryFileReader *binaryFileReader)
             case SLV: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
             case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
             case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
-            case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT: case NEG:
-            case CTI: case CTD: case CTC: case CTS: case CTB: case DFL: case RET:
+            case AND: case LOR: case NOT: case NEG: case CTI: case CTD: case CTC: case CTS:
+            case CTB: case DFL: case RET:
                 break;
             case PVA: case PSV: case PSL: case JBF: case PCV:
+            case INL: case DEL: case INC: case DEC:
                 dslValue->operand = binaryFileReader->GetInt();
                 break;
             case JIF: case JIT:

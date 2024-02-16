@@ -404,11 +404,12 @@ void Serialize(BinaryFileWriter *file)
             case SUA: case MUA: case DIA: case MOA: case EXP: case MUL: case DIV:
             case ADD: case SUB: case MOD: case XOR: case BND: case BOR: case SVL:
             case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS:case TLE:
-            case AND: case LOR: case INL: case DEL: case INC: case DEC: case NOT:
-            case NEG: case CTI: case CTD: case CTC: case CTS: case CTB: case DFL:
+            case AND: case LOR: case NOT: case NEG: case CTI: case CTD:
+            case CTC: case CTS: case CTB: case DFL:
             case RET:
                 break;
             case PVA: case PSV: case PSL: case JBF: case PCV:
+            case INL: case DEL: case INC: case DEC:
                 file->AddInt(dslValue->operand);
                 break;
             case JIF: case JIT:
