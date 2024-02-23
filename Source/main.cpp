@@ -10,7 +10,6 @@
 
 #include "../Includes/parser.h"
 #include "../Includes/CPU.h"
-#include "../Includes/JsonParser.h"
 #include <iostream>
 #include <unistd.h>
 
@@ -445,6 +444,21 @@ void Serialize(BinaryFileWriter *file)
             case CID:
                 file->AddInt(dslValue->moduleId);
                 break;
+            case COM:
+                file->AddString(&dslValue->component->title);
+                file->AddString(&dslValue->component->toolTip);
+                file->AddInt(dslValue->component->x);
+                file->AddInt(dslValue->component->y);
+                file->AddInt(dslValue->component->width);
+                file->AddInt(dslValue->component->height);
+                file->AddInt(dslValue->component->slots.Count());
+                for(int64_t tt=0; tt<dslValue->component->slots.Count(); ++tt)
+                {
+                    file->AddInt(dslValue->component->slots[0]->IsInput);
+                    file->AddString(&dslValue->component->slots[ii]->color);
+                    file->AddString(&dslValue->component->slots[ii]->variable);
+                }
+                break;
         }
     }
 }
@@ -452,7 +466,6 @@ void Serialize(BinaryFileWriter *file)
 /// \desc Writes out the symbol file needed for debugging.
 bool WriteSymbols()
 {
-
     BinaryFileWriter writer = {};
 
     for(int64_t ii=0; ii<program.Count(); ++ii)

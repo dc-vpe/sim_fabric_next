@@ -16,6 +16,9 @@ List<Module *> modules;
 /// \desc List of tokens created by the lexers.
 List<Token *> tokens;
 
+/// \desc list of components that have been defined.
+List<ComponentData *> componentsData;
+
 /// \desc Hashmaps containing the variables that have been defined in TokenModifier order
 Hashmap variables;
 

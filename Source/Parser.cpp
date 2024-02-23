@@ -158,8 +158,7 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
         case MUA: case DIA: case MOA: case ADD: case SUB: case SVL: case SVR: case TLS:
         case TLE: case TGR: case TGE: case TEQ: case TNE: case BND: case XOR: case BOR:
         case AND: case LOR: case CTI: case CTD: case CTC: case CTS: case CTB: case SAV:
-        case INC: case DEC: case INL: case DEL: case CID:
-        case SLV:
+        case INC: case DEC: case INL: case DEL: case CID: case SLV:
         case PSP:
             value = new DslValue(token->value);
             value->opcode = opcode;
@@ -177,6 +176,25 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             value->variableName.CopyFrom(&funInfo->value->variableName);
             value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
             value->location = funInfo->value->location;
+            if ( !program.push_back(value) )
+            {
+                return nullptr;
+            }
+            break;
+        case COM:
+            value = new DslValue(COM);
+            value->moduleId = token->value->moduleId;
+            value->component = new ComponentData(*token->value->component);
+            value->location = 0;
+            funInfo = functions.Get(&token->value->component->function);
+            value->variableName.CopyFrom(&funInfo->value->variableName);
+            value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
+            value->location = funInfo->value->location;
+            for(int64_t vv=0; vv<value->component->slots.Count(); ++vv)
+            {
+                Token *v = variables.Get(token->identifier);
+                value->operand = v->value->operand;
+            }
             if ( !program.push_back(value) )
             {
                 return nullptr;
@@ -320,10 +338,10 @@ bool Parser::Parse()
     FixUpFunctionCalls();
     FixUpJumpsToEnd();
 
-    for(int ii=0; ii<modules.Count(); ++ii)
+    for(int64_t ii=0; ii<modules.Count(); ++ii)
     {
         //Add any system events.
-        for(int tt=1; tt<modules[ii]->systemEvents.Count(); ++tt)
+        for(int64_t tt=1; tt<modules[ii]->systemEvents.Count(); ++tt)
         {
             if ( modules[ii]->systemEvents.Count() > 0 )
             {
@@ -336,7 +354,7 @@ bool Parser::Parse()
         }
 
         //Add any user events.
-        for(int tt=1; tt<modules[ii]->userEvents.Count(); ++tt)
+        for(int64_t tt=1; tt<modules[ii]->userEvents.Count(); ++tt)
         {
             if ( modules[ii]->userEvents.Count() > 0 )
             {
@@ -349,7 +367,15 @@ bool Parser::Parse()
         }
     }
 
-    program[0]->operand = program.Count(); //user events
+    //Add the component data
+    for(int64_t ii=0; ii<componentsData.Count(); ++ii)
+    {
+        auto *component = new Token();
+
+        component->type = COMPONENT;
+        component->value->component = new ComponentData(*componentsData[ii]);
+        OutputCode(component, COM);
+    }
 
     bool result = true;
 

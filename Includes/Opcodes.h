@@ -65,6 +65,7 @@ enum OPCODES
     EFI,    //Event function information
     RFE,    //Return from event.
     CID,    //Change module id.
+    COM,    //sValue contains packed byte data describing a component.
 };
 
 #endif //DSL_CPP_OPCODES_H

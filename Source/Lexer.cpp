@@ -7,6 +7,10 @@
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
 
+#define PARAM_DONE      1
+#define PARAM_CONTINUE  2
+#define PARAM_ERROR     3
+
 /// \desc Gets the character at the position.
 /// \return The character or U8_NULL_CHR if position is outside the range of the code.
 u8chr Lexer::GetCurrent()
@@ -483,7 +487,7 @@ bool Lexer::GetNumber(bool ignoreErrors)
                 {
                     if ( !ignoreErrors )
                     {
-                        PrintIssue(2003, true, false,
+                        PrintIssue(2010, true, false,
                                    "A number can contain only a single period ignoring");
                     }
                     warningShown = true;
@@ -551,7 +555,7 @@ bool Lexer::ProcessEscapeCharacter(u8chr &ch, bool ignoreErrors)
     {
         if ( !ignoreErrors )
         {
-            PrintIssue(2006, true, false, "Expected a character after \\ escape character in string value");
+            PrintIssue(2020, true, false, "Expected a character after \\ escape character in string value");
         }
         return false;
     }
@@ -560,7 +564,7 @@ bool Lexer::ProcessEscapeCharacter(u8chr &ch, bool ignoreErrors)
     {
         if ( !ignoreErrors )
         {
-            PrintIssue(2009, false, false,
+            PrintIssue(2030, false, false,
                        "The '%c' character is not a valid escape character", (char)ch);
         }
         return true;
@@ -620,7 +624,7 @@ bool Lexer::GetStringDirect(bool ignoreErrors)
         locationInfo.Increment(ch);
         if ( ch == U8_NULL_CHR )
         {
-            PrintIssue(2012, true, false,"End of script instead of \"$ end of string definition");
+            PrintIssue(2040, true, false,"End of script instead of \"$ end of string definition");
             return false;
         }
         if ( ch != '\"' )
@@ -711,7 +715,7 @@ bool Lexer::GetCharacterValue(bool ignoreErrors)
     ch = GetCurrent();
     if ( ch != '\'')
     {
-        PrintIssue(2015, true, false,
+        PrintIssue(2050, true, false,
                    "Single character must be enclosed in single quotes");
         return false;
     }
@@ -730,7 +734,7 @@ bool Lexer::ValidateAndGetFullName(Token *token, bool ignoreErrors)
             {
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2018, true, false, "Local variables can only be created inside of a function definition");
+                    PrintIssue(2060, true, false, "Local variables can only be created inside of a function definition");
                 }
                 return false;
             }
@@ -738,7 +742,7 @@ bool Lexer::ValidateAndGetFullName(Token *token, bool ignoreErrors)
             {
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2021, true, false,
+                    PrintIssue(2070, true, false,
                                "Local variables can't contain a period as they only exist inside "
                                "the function in which they are declared.");
                 }
@@ -757,7 +761,7 @@ bool Lexer::ValidateAndGetFullName(Token *token, bool ignoreErrors)
             {
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2024, true, false,
+                    PrintIssue(2080, true, false,
                                "Script variables can't contain a period as they only exist inside "
                                "the script in which they are declared.");
                 }
@@ -788,7 +792,7 @@ bool Lexer::ValidateAndGetFullName(Token *token, bool ignoreErrors)
                 {
                     if ( !ignoreErrors )
                     {
-                        PrintIssue(2027, true, false,
+                        PrintIssue(2090, true, false,
                                    "Global variables can only be defined in the module in which they are created.");
                     }
                     return false;
@@ -939,17 +943,13 @@ bool Lexer::DefineVariable()
     if (type != SEMICOLON )
     {
         varSpecified = false;
-        PrintIssue(2030, true, false, "Missing semicolon at end of expression");
+        PrintIssue(2100, true, false, "Missing semicolon at end of expression");
         SkipToEndOfStatement();
         return false;
     }
 
     return true;
 }
-
-#define PARAM_DONE      1
-#define PARAM_CONTINUE  2
-#define PARAM_ERROR     3
 
 int Lexer::CheckFunctionNamedParameter()
 {
@@ -965,7 +965,7 @@ int Lexer::CheckFunctionNamedParameter()
         {
             if ( PeekNextTokenType() == CLOSE_PAREN )
             {
-                PrintIssue(2033, true, false, "Expected a name for the parameter");
+                PrintIssue(2110, true, false, "Expected a name for the parameter");
                 return PARAM_ERROR;
             }
             return PARAM_CONTINUE;
@@ -975,11 +975,11 @@ int Lexer::CheckFunctionNamedParameter()
             return PARAM_DONE;
         }
 
-        PrintIssue(2036, true, false, "Expected a comma or close paren after the parameter name");
+        PrintIssue(2120, true, false, "Expected a comma or close paren after the parameter name");
         return PARAM_ERROR;
     }
 
-    PrintIssue(2039, true, false,
+    PrintIssue(2130, true, false,
                "Expected a close paren or the parameters name after the functions open paren");
     return PARAM_ERROR;
 }
@@ -992,7 +992,7 @@ bool Lexer::CheckFunctionDefinitionSyntax(Token *token)
     LocationInfo start = locationInfo;
     if ( definingFunction )
     {
-        PrintIssue(2042, true, false, "Functions can't be declared inside other functions");
+        PrintIssue(2140, true, false, "Functions can't be declared inside other functions");
         return false;
     }
 
@@ -1000,7 +1000,7 @@ bool Lexer::CheckFunctionDefinitionSyntax(Token *token)
 
     if ( type != OPEN_PAREN )
     {
-        PrintIssue(2045, true, false,
+        PrintIssue(2150, true, false,
                    "Functions require an open paren after the name of the function");
         return false;
     }
@@ -1025,14 +1025,14 @@ bool Lexer::CheckFunctionDefinitionSyntax(Token *token)
 
     if ( PeekNextTokenType() != OPEN_BLOCK )
     {
-        PrintIssue(2048, true, false, "Missing open curly brace after close parenthesis in function definition");
+        PrintIssue(2160, true, false, "Missing open curly brace after close parenthesis in function definition");
         locationInfo = start;
         return false;
     }
 
     if (!SkipToEndOfBlock(start))
     {
-        PrintIssue(2051, true, false, "Missing close curly brace in function definition");
+        PrintIssue(2170, true, false, "Missing close curly brace in function definition");
         locationInfo = start;
         return false;
     }
@@ -1076,7 +1076,7 @@ bool Lexer::DefineFunction(Token *token)
                 {
                     if ( modules[m_id-1]->systemEvents[ii].Count() > 0 )
                     {
-                        PrintIssue(2200, true, false,
+                        PrintIssue(2180, true, false,
                                    "Event function %s for module %s already exists.",
                                    funBegin->value->variableScriptName.cStr(), modules[m_id-1]->name.cStr());
                         SkipToEndOfBlock(start);
@@ -1094,7 +1094,7 @@ bool Lexer::DefineFunction(Token *token)
                 {
                     if ( modules[m_id-1]->userEvents[0].IsEqual(funBegin->identifier))
                     {
-                        PrintIssue(2200, true, false,
+                        PrintIssue(2190, true, false,
                                    "Event function %s for module %s already exists.",
                                    funBegin->value->variableScriptName.cStr(), modules[m_id-1]->name.cStr());
                         SkipToEndOfBlock(start);
@@ -1123,7 +1123,7 @@ bool Lexer::DefineFunction(Token *token)
 
     if ( PeekNextTokenType() != OPEN_BLOCK )
     {
-        PrintIssue(2054, true, false, "Missing open curly brace in function definition");
+        PrintIssue(2200, true, false, "Missing open curly brace in function definition");
         SkipToEndOfBlock(start);
         definingFunction = false;
         return false;
@@ -1132,7 +1132,7 @@ bool Lexer::DefineFunction(Token *token)
     LocationInfo next = locationInfo;
     if (!SkipToEndOfBlock(start))
     {
-        PrintIssue(2057, true, false, "Missing close curly brace in function definition");
+        PrintIssue(2210, true, false, "Missing close curly brace in function definition");
         SkipToEndOfBlock(start);
         definingFunction = false;
         return false;
@@ -1201,7 +1201,7 @@ bool Lexer::DefineFunctionParameters()
         }
         else if ( type != COMMA && type != CLOSE_PAREN )
         {
-            PrintIssue(2060, true, false, "Invalid identifier specified for function parameter");
+            PrintIssue(2220, true, false, "Invalid identifier specified for function parameter");
             definingFunctionsParameters = false;
             return false;
         }
@@ -1238,7 +1238,7 @@ bool Lexer::ProcessOperation(Stack<DslValue *> &values, TokenTypes type, bool ig
             {
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2063, true, false, "Divide by zero is undefined");
+                    PrintIssue(2230, true, false, "Divide by zero is undefined");
                     return false;
                 }
                 else
@@ -1254,7 +1254,7 @@ bool Lexer::ProcessOperation(Stack<DslValue *> &values, TokenTypes type, bool ig
             {
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2066, true, false, "Modulo by zero is undefined");
+                    PrintIssue(2240, true, false, "Modulo by zero is undefined");
                     return false;
                 }
                 else
@@ -1306,7 +1306,7 @@ bool Lexer::PushTmpValue(Stack<DslValue *> &values, DslValue *dslValue, int64_t 
             tmpValues[ii] = new DslValue();
             if ( tmpValues[ii] == nullptr )
             {
-                PrintIssue(2069, true, false,
+                PrintIssue(2250, true, false,
                            "Out of memory extending temporary work values buffer");
                 return false;
             }
@@ -1319,7 +1319,10 @@ bool Lexer::PushTmpValue(Stack<DslValue *> &values, DslValue *dslValue, int64_t 
 /// \desc Scans a variable assignment expression looking for the end of the expression.
 /// \param ignoreErrors If true then normal error processing occurs, else error generation except
 ///                      for fatal errors are ignored.
-/// \return Location Info the expression ends at.
+/// \param end Reference to a location info that contains the location the expression ends at on
+///            on return.
+/// \return True if successful, or false if an error occurs.
+
 bool Lexer::GetExpressionEnd(bool ignoreErrors, LocationInfo &end)
 {
     LocationInfo start;
@@ -1452,7 +1455,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
             case END_OF_SCRIPT:
                 if ( ignoreErrors )
                 {
-                    PrintIssue(2072, true, false, "Missing close curly brace in collection definition");
+                    PrintIssue(2260, true, false, "Missing close curly brace in collection definition");
                 }
                 return false;
             case COMMA: case CLOSE_BRACE: case MULTI_LINE_COMMENT: case SINGLE_LINE_COMMENT: case SEMICOLON:
@@ -1527,7 +1530,7 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
             default:
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2075, true, false,
+                    PrintIssue(2270, true, false,
                                "Expressions used to initialize a variable "
                                "can only contain values, operators, and collections");
                 }
@@ -1558,10 +1561,10 @@ bool Lexer::ProcessStaticExpression(DslValue *dslValue,
 ///         value is set in the dslValue. This works because the code
 ///         will replace this value when it is run.
 bool Lexer::ProcessSingleAssignmentExpression(Token *token,
-                                              DslValue *dslValue,
-                                              bool &isStaticExpression,
-                                              int64_t index,
-                                              bool ignoreErrors)
+        DslValue *dslValue,
+        bool &isStaticExpression,
+        int64_t index,
+        bool ignoreErrors)
 {
     LocationInfo end;
     if ( !GetExpressionEnd(false, end) )
@@ -1711,11 +1714,11 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
     switch (type)
     {
         case END_OF_SCRIPT:
-            PrintIssue(2078, true, false,
+            PrintIssue(2280, true, false,
                        "End of script reached before key definition was complete.");
             return ERROR_TOKEN;
         case COLON:
-            PrintIssue(2081, true, false, "Collection element keys cannot be empty.");
+            PrintIssue(2290, true, false, "Collection element keys cannot be empty.");
             return ERROR_TOKEN;
         case DOUBLE_VALUE:
         case STRING_VALUE:
@@ -1723,7 +1726,7 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
             {
                 if (tmpValue->sValue.IsEmpty())
                 {
-                    PrintIssue(2084, true, false, "Collection element keys cannot be empty.");
+                    PrintIssue(2300, true, false, "Collection element keys cannot be empty.");
                     return ERROR_TOKEN;
                 }
                 key->Clear();
@@ -1738,7 +1741,7 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
                 type = PeekNextTokenType(2);
                 if ( type != COMMA && type != CLOSE_BLOCK )
                 {
-                    PrintIssue(2087, true, false,
+                    PrintIssue(2310, true, false,
                                "Invalid key format expected either a comma or a close curly brace");
                     return ERROR_TOKEN;
                 }
@@ -1780,7 +1783,7 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
         case COLLECTION:
             if (PeekNextTokenType(2, true) == COLON)
             {
-                PrintIssue(2090, true, false,
+                PrintIssue(2320, true, false,
                            "Variables and collections can't be used as keys");
                 return ERROR_TOKEN;
             }
@@ -1793,7 +1796,7 @@ TokenTypes Lexer::GetKey(Token *token, U8String *key, int64_t &index)
             GenerateKey(token, key, index);
             break;
         default:
-            PrintIssue(2093, true, false,
+            PrintIssue(2330, true, false,
                        "%s is not a valid value for a collection element key",
                        tokenNames[(int64_t)type & 0xFF]);
             return ERROR_TOKEN;
@@ -1915,7 +1918,7 @@ bool Lexer::CheckWhileSyntax()
     TokenTypes type = GetNextTokenType(true);
     if ( type != OPEN_PAREN )
     {
-        PrintIssue(2096, true, false, "a ( must follow the while statement");
+        PrintIssue(2340, true, false, "a ( must follow the while statement");
         locationInfo = save;
         SkipToEndOfBlock(save);
         return false;
@@ -1930,7 +1933,7 @@ bool Lexer::CheckWhileSyntax()
 
     if ( type == END_OF_SCRIPT || (prev != CLOSE_PAREN) )
     {
-        PrintIssue(2099, true, false,
+        PrintIssue(2350, true, false,
                    "Missing close paren before start of the statement block");
         SkipToEndOfBlock(save);
         return false;
@@ -1938,14 +1941,14 @@ bool Lexer::CheckWhileSyntax()
 
     if ( type != OPEN_BLOCK )
     {
-        PrintIssue(2102, true, false, "Missing open curly brace after while conditional");
+        PrintIssue(2360, true, false, "Missing open curly brace after while conditional");
         SkipToEndOfBlock(save);
         return false;
     }
 
     if (!SkipToEndOfBlock(save) )
     {
-        PrintIssue(2105, true, false, "Missing close curly brace after while conditional");
+        PrintIssue(2370, true, false, "Missing close curly brace after while conditional");
         return false;
     }
 
@@ -1984,7 +1987,7 @@ bool Lexer::DefineWhile()
     //Generate the conditional statements for the IF statement
     if ( !DefineConditionalExpression())
     {
-        PrintIssue(2108, true, false,
+        PrintIssue(2380, true, false,
                    "The while statement's condition is missing a close parenthesis");
         SkipToEndOfBlock(save);
         return false;
@@ -2007,7 +2010,7 @@ bool Lexer::DefineIf()
     if ( type != OPEN_PAREN )
     {
         SkipToEndOfBlock(start);
-        PrintIssue(2111, true, false, "An ( must follow the if statement");
+        PrintIssue(2390, true, false, "An ( must follow the if statement");
         return false;
     }
     tokens.push_back(new Token(IF_COND_BEGIN));
@@ -2015,7 +2018,7 @@ bool Lexer::DefineIf()
     //Generate the conditional statements for the IF statement
     if ( !DefineConditionalExpression())
     {
-        PrintIssue(2114, true, false,
+        PrintIssue(2400, true, false,
                    "The if statement conditional expression is missing a close paren");
         SkipToEndOfBlock(start);
         return false;
@@ -2026,7 +2029,7 @@ bool Lexer::DefineIf()
     if ( PeekNextTokenType() != OPEN_BLOCK )
     {
         SkipToEndOfBlock(start);
-        PrintIssue(2117, true, false, "Missing open curly brace after if loop condition");
+        PrintIssue(2410, true, false, "Missing open curly brace after if loop condition");
         return false;
     }
 
@@ -2045,7 +2048,7 @@ bool Lexer::DefineIf()
         if ( PeekNextTokenType() == ELSE )
         {
             SkipToEndOfBlock(start);
-            PrintIssue(2120, true, false, "else without a matching if");
+            PrintIssue(2420, true, false, "else without a matching if");
             return false;
         }
 
@@ -2064,7 +2067,7 @@ bool Lexer::DefineIf()
         if ( PeekNextTokenType() != OPEN_BLOCK )
         {
             SkipToEndOfBlock(start);
-            PrintIssue(2123, true, false, "Missing open curly brace after else condition");
+            PrintIssue(2430, true, false, "Missing open curly brace after else condition");
             return false;
         }
 
@@ -2157,7 +2160,7 @@ bool Lexer::DefineStatementBlock(LocationInfo start, TokenTypes blockStart, Toke
     //Find the end of the block
     if ( !SkipToEndOfBlock(start) )
     {
-        PrintIssue(2126, true, false, "Too many open curly braces in statement block.");
+        PrintIssue(2440, true, false, "Too many open curly braces in statement block.");
         return false;
     }
     LocationInfo end = locationInfo;
@@ -2198,7 +2201,7 @@ bool Lexer::DefineStatements(LocationInfo end, bool noStatements)
         {
             if ( type != VARIABLE_VALUE && type != COLLECTION_VALUE )
             {
-                PrintIssue(2129, true, false,
+                PrintIssue(2450, true, false,
                            "Statements like %s do not return a value that can be "
                            "used to initialize a variable or element of a collection",
                            tokenNames[(int64_t)type & 0xFF]);
@@ -2244,7 +2247,7 @@ bool Lexer::DefineSwitch()
 
     if (PeekNextTokenType() != OPEN_PAREN )
     {
-        PrintIssue(2132, true, false, "Missing open curly brace after switch condition");
+        PrintIssue(2460, true, false, "Missing open curly brace after switch condition");
         SkipToEndOfBlock(start);
         return false;
     }
@@ -2255,7 +2258,7 @@ bool Lexer::DefineSwitch()
 
     if ( !DefineConditionalExpression())
     {
-        PrintIssue(2135, true, false,
+        PrintIssue(2470, true, false,
                    "The switch statement's condition is missing a close parenthesis.");
         SkipToEndOfBlock(start);
         return false;
@@ -2267,7 +2270,7 @@ bool Lexer::DefineSwitch()
     type = GetNextTokenType(true);
     if ( type != OPEN_BLOCK )
     {
-        PrintIssue(2138, true, false,
+        PrintIssue(2480, true, false,
                    "Switch statement open curly brace after condition is missing");
         SkipToEndOfBlock(start);
         return false;
@@ -2295,7 +2298,7 @@ bool Lexer::DefineSwitch()
         }
         if ( type != CASE && type != DEFAULT )
         {
-            PrintIssue(2141, true, false,
+            PrintIssue(2490, true, false,
                        "Switch statement open curly brace after condition is missing");
             SkipToEndOfBlock(start);
             return false;
@@ -2319,7 +2322,7 @@ bool Lexer::DefineSwitch()
                     }
                     if ( !IsStaticType(type) )
                     {
-                        PrintIssue(2144, true, false,
+                        PrintIssue(2500, true, false,
                                    "Case value must be a simple expression that can be pre-calculated to"
                                    "a constant value like an integer, double, string, char, or boolean");
                         SkipToEndOfBlock(start);
@@ -2337,7 +2340,7 @@ bool Lexer::DefineSwitch()
             {
                 if ( defaultSpecified )
                 {
-                    PrintIssue(2147, true, false, "A switch statement can only have one default case");
+                    PrintIssue(2510, true, false, "A switch statement can only have one default case");
                     SkipToEndOfBlock(start);
                     return false;
                 }
@@ -2349,7 +2352,7 @@ bool Lexer::DefineSwitch()
             type = GetNextTokenType(true, true);
             if ( type != COLON )
             {
-                PrintIssue(2150, true, false,
+                PrintIssue(2520, true, false,
                            "A colon must follow the case value or default keyword in a switch statement");
                 SkipToEndOfBlock(start);
                 return false;
@@ -2357,7 +2360,7 @@ bool Lexer::DefineSwitch()
             LocationInfo blockStart = locationInfo;
             if ( GetNextTokenType() != OPEN_BLOCK )
             {
-                PrintIssue(2153, true, false,
+                PrintIssue(2530, true, false,
                            "Missing open curly brace after case statement");
                 SkipToEndOfBlock(start);
                 return false;
@@ -2369,7 +2372,7 @@ bool Lexer::DefineSwitch()
                 if ( dslValues[kk]->IsEqual(&caseValue))
                 {
                     U8String buffer;
-                    PrintIssue(2156, true, false,
+                    PrintIssue(2540, true, false,
                                "Case value %s has already used in this switch statement",
                                caseValue.GetValueAsString(&buffer, false));
                     SkipToEndOfBlock(start);
@@ -2432,14 +2435,14 @@ bool Lexer::CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo 
     TokenTypes type = GetNextTokenType(true);
     if ( type != OPEN_PAREN )
     {
-        PrintIssue(2159, true, false, "An open parenthesis must follow the for keyword");
+        PrintIssue(2550, true, false, "An open parenthesis must follow the for keyword");
         return false;
     }
 
     init = locationInfo;
     if ( !SkipToCharacterBeforeCharacter(';', ')') )
     {
-        PrintIssue(2162, true, false, "No semicolon between the initialization and conditional sections");
+        PrintIssue(2560, true, false, "No semicolon between the initialization and conditional sections");
         return false;
     }
 
@@ -2447,7 +2450,7 @@ bool Lexer::CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo 
     cond = locationInfo;
     if (!SkipToCharacterBeforeCharacter(';', ')'))
     {
-        PrintIssue(2165, true, false, "No semicolon between the conditional and update sections");
+        PrintIssue(2570, true, false, "No semicolon between the conditional and update sections");
         return false;
     }
 
@@ -2455,7 +2458,7 @@ bool Lexer::CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo 
     update = locationInfo;
     if (!SkipToCharacterBeforeCharacter(')', '{'))
     {
-        PrintIssue(2168, true, false, "No close paren before the open block and after the section");
+        PrintIssue(2580, true, false, "No close paren before the open block and after the section");
         return false;
     }
 
@@ -2465,7 +2468,7 @@ bool Lexer::CheckForSyntax(LocationInfo &init, LocationInfo &cond, LocationInfo 
     type = GetNextTokenType(false);
     if ( type != OPEN_BLOCK )
     {
-        PrintIssue(2171, true, false, "Missing open block and after the close paren");
+        PrintIssue(2590, true, false, "Missing open block and after the close paren");
         return false;
     }
 
@@ -2660,7 +2663,7 @@ bool Lexer::AddVariableValue()
         {
             delete token;
             delete dslIndexes;
-            PrintIssue(2177, true, false,
+            PrintIssue(2600, true, false,
                        "Out of memory allocating token for collection index");
             return false;
         }
@@ -2717,7 +2720,7 @@ bool Lexer::CheckFunctionCallSyntax()
     TokenTypes type = GetNextTokenType(true);
     if ( type != OPEN_PAREN )
     {
-        PrintIssue(2180, true, false, "Expected an open paren after the name of the function call");
+        PrintIssue(2610, true, false, "Expected an open paren after the name of the function call");
         locationInfo = start;
         return false;
     }
@@ -2729,7 +2732,7 @@ bool Lexer::CheckFunctionCallSyntax()
 
     if ( type == END_OF_SCRIPT )
     {
-        PrintIssue(2183, true, false, "Too many open parenthesis in function call");
+        PrintIssue(2620, true, false, "Too many open parenthesis in function call");
         locationInfo = start;
         return false;
     }
@@ -2765,7 +2768,7 @@ bool Lexer::CheckFunctionCallSyntax()
         }
     }
 
-    PrintIssue(2186, true, false,
+    PrintIssue(2630, true, false,
                "Function call does not end with a semicolon, or an operator that would allow the "
                "expression to be evaluated.");
 
@@ -2792,7 +2795,7 @@ bool Lexer::SkipInnerFunctionCall()
                 --parens;
                 break;
             case END_OF_SCRIPT:
-                PrintIssue(2189, true, false, "Missing close paren in function call");
+                PrintIssue(2640, true, false, "Missing close paren in function call");
                 return false;
             default:
                 break;
@@ -2831,7 +2834,7 @@ int64_t Lexer::CountFunctionArguments()
 
     if ( !GetEndOfEnclosedExpression(end) )
     {
-        PrintIssue(2192, true, false,
+        PrintIssue(2650, true, false,
                    "The function call is missing a close paren");
         SkipToEndOfBlock(start);
         locationInfo = start;
@@ -2853,7 +2856,7 @@ int64_t Lexer::CountFunctionArguments()
         {
             if ( !SkipInnerFunctionCall() )
             {
-                PrintIssue(2195, true, false, "Missing close paren in function call");
+                PrintIssue(2660, true, false, "Missing close paren in function call");
                 locationInfo = start;
                 fullFunName.CopyFrom(&tmpFullFunctionName);
                 return false;
@@ -2905,7 +2908,7 @@ TokenTypes Lexer::AddFunctionCall()
 
         if ( count < standardFunctionParams[function->value->operand] )
         {
-            PrintIssue(2198, true, false,
+            PrintIssue(2670, true, false,
                        "Function %s requires at least %lld parameters",
                        fullFunName.cStr(),
                        standardFunctionParams[function->value->operand]);
@@ -3077,7 +3080,7 @@ bool Lexer::GetMultiLineComment()
         }
     }
 
-    PrintIssue(2201, true, false, "Closing */ not found before end of _s");
+    PrintIssue(2680, true, false, "Closing */ not found before end of _s");
     return false;
 }
 
@@ -3237,7 +3240,7 @@ TokenTypes Lexer::GetNextTokenType(bool ignoreErrors, bool checkForColon)
          (type == VARIABLE_VALUE && prev == VARIABLE_VALUE)
             )
     {
-        PrintIssue(2204, true, false, "Missing operation or separator between variables or values");
+        PrintIssue(2690, true, false, "Missing operation or separator between variables or values");
         return INVALID_EXPRESSION;
     }
 
@@ -3322,7 +3325,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
         //The member access operator is included in the identifier string if present.
         if (!ignoreErrors)
         {
-            PrintIssue(2207, true, false,
+            PrintIssue(2700, true, false,
                        "Unexpected character '%c', expected a key word,"
                        "variable, function, value or operator", ch);
             return ERROR_TOKEN;
@@ -3361,7 +3364,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
         type = GetNextTokenType(false);
         if ( type != SEMICOLON )
         {
-            PrintIssue(2210, true, false, "Expected a semi-colon after break");
+            PrintIssue(2710, true, false, "Expected a semi-colon after break");
             locationInfo = saved;
         }
         else
@@ -3398,7 +3401,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
             varSpecified = false;
             if ( !ignoreErrors )
             {
-                PrintIssue(2213, true, false,
+                PrintIssue(2720, true, false,
                            "%s can't be used as a variable or function name as it is a key word",
                            tmpBuffer->cStr());
             }
@@ -3413,7 +3416,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
                 varSpecified = false;
                 if ( !ignoreErrors )
                 {
-                    PrintIssue(2216, true, false,
+                    PrintIssue(2730, true, false,
                                "Function %s has already been defined", tmpBuffer->cStr());
                     return ERROR_TOKEN;
                 }
@@ -3425,7 +3428,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
             varSpecified = false;
             if ( !ignoreErrors )
             {
-                PrintIssue(2219, true, false,
+                PrintIssue(2740, true, false,
                            "Variable %s has already been defined", tmpBuffer->cStr());
                 return ERROR_TOKEN;
             }
@@ -3454,7 +3457,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
     //the variable or function is being defined.
     if ( type == LOCAL || type == GLOBAL || type == SCRIPT || type == CONST )
     {
-        PrintIssue(2222, true, false, "Variable modifiers can only be specified at variable creation");
+        PrintIssue(2750, true, false, "Variable modifiers can only be specified at variable creation");
         return ERROR_TOKEN;
     }
 
@@ -3467,7 +3470,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
         {
             if ( !ignoreErrors )
             {
-                PrintIssue(2225, true, false, "Parameter %s has already been defined",
+                PrintIssue(2760, true, false, "Parameter %s has already been defined",
                            tmpBuffer->cStr());
                 return ERROR_TOKEN;
             }
@@ -3491,7 +3494,7 @@ TokenTypes Lexer::ProcessGetNextTokenType(bool ignoreErrors, bool checkForColon)
     //Else this identifier is not a valid program construct.
     if ( !ignoreErrors )
     {
-        PrintIssue(2228, true, false, "Unknown identifier %s", tmpBuffer->cStr());
+        PrintIssue(2770, true, false, "Unknown identifier %s", tmpBuffer->cStr());
     }
 
     return ERROR_TOKEN;
@@ -3726,7 +3729,7 @@ bool Lexer::Lex()
                         GetFullName(name, modifier);
                         if ( functions.Exists(name) )
                         {
-                            PrintIssue(2231, true, false,
+                            PrintIssue(2780, true, false,
                                        "Function %s already defined in module %s",
                                        name->cStr(), modules[ii]->name.cStr());
                         }
@@ -3758,9 +3761,6 @@ bool Lexer::Lex()
         }
     }
 
-    //temporary, write to file, in real world needs to write out via web socket to ux client.
-    components.fwrite(new U8String("components.bin"));
-
     return true;
 }
 
@@ -3777,7 +3777,7 @@ bool Lexer::Lex(int64_t id)
 
     if ( id < 1 || id > modules.Count() )
     {
-        PrintIssue(2234, true, false,
+        PrintIssue(2790, true, false,
                    "Module does not exist. Modules are added with AddModule");
         return false;
     }
@@ -3930,7 +3930,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             --parenthesis;
             if ( parenthesis < 0 )
             {
-                PrintIssue(2237, true, false,
+                PrintIssue(2800, true, false,
                            "Close parenthesis without a matching open parenthesis");
                 return ERROR_TOKEN;
             }
@@ -4041,18 +4041,18 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
         {
             if (definingFunctionsParameters)
             {
-                PrintIssue(2240, true, false, "Function parameters may not be assigned values");
+                PrintIssue(2810, true, false, "Function parameters may not be assigned values");
                 return ERROR_TOKEN;
             }
             if ( tokens.Count() == 0 )
             {
-                PrintIssue(2243, true, false, "Assignment attempted without a variable");
+                PrintIssue(2820, true, false, "Assignment attempted without a variable");
                 return ERROR_TOKEN;
             }
             Token *prevOutputToken = tokens[tokens.Count() - 1];
             if ( prevOutputToken->readyOnly )
             {
-                PrintIssue(2246, true, false,
+                PrintIssue(2830, true, false,
                            "%s can't be assigned to as it is read only",
                            prevOutputToken->value->variableName.cStr());
                 return ERROR_TOKEN;
@@ -4062,7 +4062,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
                 prevOutputToken->type != VARIABLE_ADDRESS &&
                 prevOutputToken->type != COLLECTION_ADDRESS)
             {
-                PrintIssue(2249, true, false, "Assignment attempted to something other than a variable");
+                PrintIssue(2840, true, false, "Assignment attempted to something other than a variable");
                 return ERROR_TOKEN;
             }
             auto *tokenAssign = new Token(prevOutputToken);
@@ -4134,10 +4134,10 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             }
             return type;
         case CASE:
-            PrintIssue(2252, true, false, "The case key word can only be used inside a switch statement");
+            PrintIssue(2850, true, false, "The case key word can only be used inside a switch statement");
             return ERROR_TOKEN;
         case DEFAULT:
-            PrintIssue(2255, true, false, "The default must be used inside a switch statement");
+            PrintIssue(2860, true, false, "The default must be used inside a switch statement");
             return type;
         case SWITCH:
             if ( !DefineSwitch() )
@@ -4149,13 +4149,13 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
         case EVENT_RETURN:
             if ( !definingFunction )
             {
-                PrintIssue(2258, true, false,
+                PrintIssue(2870, true, false,
                            "The return statement can only be used inside a function");
                 return ERROR_TOKEN;
             }
             if ( PeekNextTokenType() == SEMICOLON )
             {
-                PrintIssue(2261, true, false,
+                PrintIssue(2880, true, false,
                            "The return statement requires a value to return");
                 return ERROR_TOKEN;
             }
@@ -4182,7 +4182,7 @@ TokenTypes Lexer::GenerateTokens(TokenTypes type)
             }
             return type;
         case FUNCTION_DEF_BEGIN:
-            PrintIssue(2264, true, false, "Functions cannot be defined within functions");
+            PrintIssue(2890, true, false, "Functions cannot be defined within functions");
             return ERROR_TOKEN;
         case MULTI_LINE_COMMENT: case SINGLE_LINE_COMMENT:
             tokens.push_back(new Token(type, tmpBuffer));
@@ -4266,14 +4266,14 @@ Lexer::Lexer()
     tmpBuffer = new U8String();
     if ( tmpBuffer == nullptr )
     {
-        PrintIssue(2267,  true, false, "Error allocating memory for temporary work buffer");
+        PrintIssue(2900,  true, false, "Error allocating memory for temporary work buffer");
         return;
     }
 
     tmpValue = new DslValue();
     if ( tmpValue == nullptr )
     {
-        PrintIssue(2270, true, false,
+        PrintIssue(2910, true, false,
                    "Error allocating memory for temporary work value");
         return;
     }
@@ -4295,21 +4295,319 @@ Lexer::~Lexer()
     delete tmpValue;
 }
 
-/// \desc Parses the Component meta information into a compacted data packet for transmition
+/// \desc Checks if the string value in tmpValue is a correctly formatted web color value.
+/// \return TRUE if successful, else false.
+bool Lexer::IsColorValue()
+{
+    if ( tmpValue->sValue.Count() != 7 )
+    {
+        return false;
+    }
+    if ( tmpValue->sValue.get(0) != '#' )
+    {
+        return false;
+    }
+    for(int64_t ii=1; ii<tmpValue->sValue.Count(); ++ii)
+    {
+        u8chr ch = tmpValue->sValue.get(ii);
+        if ( !isxdigit((int)ch) )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/// \desc Extracts the information need to create a components input slot and saves it into the
+///       packed component information.
+/// \param componentData Component data class to fill in with the extracted data.
+/// \return True if successful, or false if an error occurs.
+bool Lexer::ParseSlot(ComponentData &componentData)
+{
+    TokenTypes type = GetNextTokenType(true);
+    if ( type != OPEN_PAREN )
+    {
+        PrintIssue(2920, true, false, "Missing open paren after Input() specification");
+        return false;
+    }
+
+    SlotData slotData = {};
+
+    //Get the slot type
+    tmpBuffer->Clear();
+    type = GetNextTokenType(true);
+    if ( !tmpBuffer->IsEqual("Input") && !tmpBuffer->IsEqual("Output"))
+    {
+        PrintIssue(2930, true, false, "Expected the type of slot, Input, or Output");
+        return false;
+    }
+    slotData.IsInput = tmpBuffer->IsEqual("Input");
+    type = GetNextTokenType(true);
+    if ( type != COMMA )
+    {
+        PrintIssue(2940, true, false, "Missing comma after the slot type specifier");
+        return false;
+    }
+
+    type = GetNextTokenType(true);
+    if ( type != VARIABLE_VALUE )
+    {
+        PrintIssue(2950, true, false, "Input variable %s does not exit", tmpBuffer->cStr());
+        return false;
+    }
+    slotData.variable.CopyFrom(&fullVarName);
+    type = GetNextTokenType(true);
+    if ( type != COMMA )
+    {
+        PrintIssue(2960, true, false, "Missing comma after the InputSlots variable specification");
+        return false;
+    }
+
+    //Get and save the input slots color.
+    type = GetNextTokenType(true);
+    if ( type == STRING_VALUE )
+    {
+        if ( !IsColorValue() )
+        {
+            type = ERROR_TOKEN;
+        }
+    }
+    if ( type != STRING_VALUE )
+    {
+        PrintIssue(2970, true, false, "The InputSlot's color must be a string formatted as a web color");
+        return false;
+    }
+    slotData.color.CopyFrom(&tmpValue->sValue);
+    type = GetNextTokenType(true);
+    if ( type != CLOSE_PAREN )
+    {
+        PrintIssue(2980, true, false, "Missing close paren after the InputSlot's color specification");
+        return false;
+    }
+
+    type = GetNextTokenType(true);
+    if ( type != SEMICOLON )
+    {
+        PrintIssue(2990, true, false, "Missing semicolon after the InputSlot() specification");
+        return false;
+    }
+
+    componentData.slots.push_back(new SlotData(slotData));
+
+    return true;
+}
+
+
+/// \desc Parses the run meta tag which defines the function to run when the run button for a graph
+///       is clicked in the low code no code tool.
+/// \param componentData Reference to the componentData to be filled in by this parse method.
+/// \returns True if successful or false if an error occurs.
+bool Lexer::ParseRun(ComponentData &componentData)
+{
+    TokenTypes type = GetNextTokenType(true);
+    if ( type != OPEN_PAREN )
+    {
+        PrintIssue(3000, true, false, "Missing open paren after Component keyword");
+        return ERROR_TOKEN;
+    }
+
+    type = GetNextTokenType(true);
+    if ( type != FUNCTION_CALL )
+    {
+        PrintIssue(3010, true, false, "The function %s does not exit", componentData.title.cStr());
+        return ERROR_TOKEN;
+
+    }
+
+    componentData.function.CopyFrom(&fullFunName);
+
+    type = GetNextTokenType(true);
+    if ( type != CLOSE_PAREN )
+    {
+        PrintIssue(3020, true, false, "Missing close block after Component(%s) name", componentData.title.cStr());
+        return ERROR_TOKEN;
+    }
+
+    type = GetNextTokenType(true);
+    if ( type != SEMICOLON )
+    {
+        PrintIssue(3030, true, false, "Missing semicolon after the Run() specification");
+        return false;
+    }
+
+    return true;
+}
+
+/// \desc Parses the Component meta information into a compacted data packet for transmission
 ///       to the low code, no code, tool suite.
-TokenTypes Lexer::AddComponentInformation(LocationInfo start, LocationInfo end)
+TokenTypes Lexer::AddComponent(LocationInfo start, LocationInfo end)
 {
     TokenTypes type;
+
+    ComponentData componentData = {};
+
+    //The component name is required.
+    type = GetNextTokenType(true);
+    if ( type != OPEN_PAREN )
+    {
+        PrintIssue(3040, true, false, "Missing open paren after Component keyword");
+        return ERROR_TOKEN;
+    }
+
+    type = GetNextTokenType(true);
+    if ( type != STRING_VALUE )
+    {
+        PrintIssue(3050, true, false, "Component name must be a string value");
+        return ERROR_TOKEN;
+    }
+
+    componentData.title.CopyFrom(&tmpValue->sValue);
+
+    //Get the tool tip if it exists.
+    type = GetNextTokenType(true);
+    if ( type != CLOSE_PAREN )
+    {
+        if ( type != COMMA )
+        {
+            PrintIssue(3060, true, false, "Missing comma after component name");
+            return ERROR_TOKEN;
+        }
+
+        type = GetNextTokenType(true);
+        if ( type != STRING_VALUE )
+        {
+            PrintIssue(3070, true, false, "Component tool tip must be a string value");
+            return ERROR_TOKEN;
+        }
+
+        componentData.toolTip.CopyFrom(&tmpValue->sValue);
+
+        //Get the window location if it exists.
+        //Get the x start location
+        type = GetNextTokenType(true);
+        if ( type != CLOSE_PAREN )
+        {
+            if (type != COMMA)
+            {
+                PrintIssue(3080, true, false, "Missing comma after tool tip");
+                return ERROR_TOKEN;
+            }
+
+            type = GetNextTokenType(true);
+            if (type != INTEGER_VALUE)
+            {
+                PrintIssue(3090, true, false, "Component x location must an integer value");
+                return ERROR_TOKEN;
+            }
+
+            componentData.x = tmpValue->iValue;
+
+            //Get the y start location
+            type = GetNextTokenType(true);
+            if (type != COMMA)
+            {
+                PrintIssue(3100, true, false, "Missing comma after x location");
+                return ERROR_TOKEN;
+            }
+
+            type = GetNextTokenType(true);
+            if (type != INTEGER_VALUE)
+            {
+                PrintIssue(3110, true, false, "Component y location must an integer value");
+                return ERROR_TOKEN;
+            }
+
+            componentData.y = tmpValue->iValue;
+
+            //Get the width
+            type = GetNextTokenType(true);
+            if (type != COMMA)
+            {
+                PrintIssue(3120, true, false, "Missing comma after y location");
+                return ERROR_TOKEN;
+            }
+
+            type = GetNextTokenType(true);
+            if (type != INTEGER_VALUE)
+            {
+                PrintIssue(3130, true, false, "Component width must an integer value");
+                return ERROR_TOKEN;
+            }
+
+            componentData.width = tmpValue->iValue;
+
+            //Get the height
+            type = GetNextTokenType(true);
+            if (type != COMMA)
+            {
+                PrintIssue(3140, true, false, "Missing comma after width");
+                return ERROR_TOKEN;
+            }
+
+            type = GetNextTokenType(true);
+            if (type != INTEGER_VALUE)
+            {
+                PrintIssue(3150, true, false, "Component height must an integer value");
+                return ERROR_TOKEN;
+            }
+
+            componentData.height = tmpValue->iValue;
+            type = GetNextTokenType(true);
+        }
+    }
+
+    if ( type != CLOSE_PAREN )
+    {
+        PrintIssue(3160, true, false, "Missing close paren after Component name");
+        return ERROR_TOKEN;
+    }
+
+    type = GetNextTokenType(true);
+    if ( type != OPEN_BLOCK )
+    {
+        PrintIssue(3170, true, false, "Missing open block after Component(%s) name", componentData.title.cStr());
+        return ERROR_TOKEN;
+    }
 
     while( locationInfo.location < end.location)
     {
         type = GetNextTokenType(true);
-
+        if ( type == CLOSE_BLOCK )
+        {
+            continue;
+        }
+        if ( tmpBuffer->IsEqual("Run") )
+        {
+            if ( !ParseRun(componentData))
+            {
+                return ERROR_TOKEN;
+            }
+        }
+        else if ( tmpBuffer->IsEqual("Slot") )
+        {
+            if ( !ParseSlot(componentData) )
+            {
+                return ERROR_TOKEN;
+            }
+        }
+        else
+        {
+            PrintIssue(3180, true, false, "invalid meta specification inside declaration block");
+            return ERROR_TOKEN;
+        }
     }
+
+    if ( type != CLOSE_BLOCK )
+    {
+        PrintIssue(3190, true, false, "Missing close block after Component(%s) name", componentData.title.cStr());
+        return ERROR_TOKEN;
+    }
+
+    componentsData.push_back(new ComponentData(componentData));
 
     return type;
 }
-
 
 /// \desc Updates the component information and sends it to the low code no code UX tool.
 /// \returns The next token as if the component has not been specified.
@@ -4324,18 +4622,14 @@ TokenTypes Lexer::UpdateComponentInformation()
     LocationInfo end = locationInfo;
     locationInfo = start;
 
-    TokenTypes type = AddComponentInformation(start, end);
+    TokenTypes type = AddComponent(start, end);
     if ( type == ERROR_TOKEN )
     {
+        SkipToEndOfBlock(locationInfo);
         return INVALID_TOKEN;
     }
 
-    if (GetNextTokenType() == COMPONENT )
-    {
-        UpdateComponentInformation();
-    }
-
-    return GetNextTokenType();
+    return type;
 }
 
 #pragma clang diagnostic pop

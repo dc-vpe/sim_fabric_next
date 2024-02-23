@@ -6,6 +6,7 @@
 #define DSL_CPP_MODULE_H
 
 #include "U8String.h"
+#include "ComponentData.h"
 
 /// \desc Module defines a single module i.e. class in the DSL language.
 class Module
@@ -23,8 +24,8 @@ public:
     /// \remark system events are kept in the same order and range as the system error handlers enumeration.
     List<U8String> systemEvents = {};
 
-    //User events are events that the program can raise to send a message to another part
-    //of the program. This allows cross script communication.
+    /// \desc User events are events that the program can raise to send a message to another part
+    ///       of the program. This allows cross script communication.
     List<U8String> userEvents = {};
 };
 

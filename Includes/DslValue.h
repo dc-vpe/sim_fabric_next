@@ -13,6 +13,7 @@
 #include "TokenTypes.h"
 #include "Opcodes.h"
 #include "Collection.h"
+#include "ComponentData.h"
 #include <cstdio>
 #include <cstddef>
 #include <malloc.h>
@@ -101,6 +102,9 @@ public:
     ///       placed at the end.
     List<DslValue *> cases;
 
+    /// \desc Component definition if any.
+    ComponentData *component;
+
     /// \desc Copies the right dslValue to this one.
     /// \param right DslValue containing the data to copy.
     void SAV(DslValue *right);
@@ -122,7 +126,11 @@ public:
     /// \param showEscapes True if escape codes should display as their \ code, else false.
     void Print(bool showEscapes);
 
-    /// \desc Prints a simple dsl value to the console.
+    /// \desc Displays the contents of this dsl value to the console.
+    /// \param showEscapes If false escape codes are shown as they would be if used in printf,
+    ///                    If true the escape codes are shown as they appear in the code. For
+    ///                    example, true would cause a line feed, while false would display
+    ///                    the \n characters.
     void printItem(bool showEscapes);
 
     /// \desc Formats a single character into a json compatible format.

@@ -23,6 +23,9 @@ extern List<DslValue *> program;
 /// \desc modules that make up the program.
 extern List<Module *> modules;
 
+/// \desc list of components that have been defined.
+extern List<ComponentData *> componentsData;
+
 //Hashmaps containing the variables that have been defined in TokenModifier order
 extern Hashmap variables;
 

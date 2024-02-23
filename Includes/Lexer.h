@@ -20,6 +20,7 @@
 #include "WarningLevels.h"
 #include "ParseData.h"
 #include "BinaryFileWriter.h"
+#include "ComponentData.h"
 
 /// \desc Checks if the text character is a number 0 though 9 inclusive.
 #define IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
@@ -179,9 +180,6 @@ private:
     /// \desc Temporary values used for value stack when calculating static expressions.
     List<DslValue *> tmpValues;
 
-    /// \desc data for any components encountered.
-    BinaryFileWriter components = {};
-
     bool Lex(int64_t id);
     static bool IsHexDigit(u8chr ch);
     static int64_t ConvertHexDigit(u8chr ch);
@@ -261,7 +259,10 @@ private:
     static bool AddStandardAssets();
     TokenTypes ReadNextToken();
     TokenTypes GenerateTokens(TokenTypes type);
-    TokenTypes AddComponentInformation(LocationInfo start, LocationInfo end);
+    bool IsColorValue();
+    bool ParseSlot(ComponentData &componentData);
+    bool ParseRun(ComponentData &componentData);
+    TokenTypes AddComponent(LocationInfo start, LocationInfo end);
     TokenTypes UpdateComponentInformation();
 };
 

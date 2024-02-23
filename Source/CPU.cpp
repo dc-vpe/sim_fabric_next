@@ -131,6 +131,9 @@ int64_t CPU::DisplayASMCodeLine(List<DslValue *> &programInstructions, int64_t a
     printf("%4.4llx\t%s", addr, OpCodeNames[dslValue->opcode]);
     switch(dslValue->opcode)
     {
+        case COM:
+            printf("%s", dslValue->component->title.cStr());
+            break;
         case CID:
             printf("\t%llx", (long long int)dslValue->moduleId);
             break;
@@ -1392,6 +1395,26 @@ void CPU::DeSerializeIL(BinaryFileReader *binaryFileReader)
                 lastModId = binaryFileReader->GetInt();
                 dslValue->moduleId = lastModId;
                 break;
+            case COM:
+            {
+                dslValue->component = new ComponentData();
+                binaryFileReader->GetString(&dslValue->component->title);
+                binaryFileReader->GetString(&dslValue->component->toolTip);
+                dslValue->component->x = binaryFileReader->GetInt();
+                dslValue->component->y = binaryFileReader->GetInt();
+                dslValue->component->width = binaryFileReader->GetInt();
+                dslValue->component->height = binaryFileReader->GetInt();
+                int64_t count = binaryFileReader->GetInt();
+                for (int64_t tt = 0; tt < count; ++tt)
+                {
+                    SlotData slotData = {};
+                    slotData.IsInput = binaryFileReader->GetInt();
+                    binaryFileReader->GetString(&slotData.color);
+                    binaryFileReader->GetString(&slotData.variable);
+                    dslValue->component->slots.push_back(new SlotData(slotData));
+                }
+                break;
+            }
         }
 
         instructions.push_back(dslValue);
@@ -1428,7 +1451,7 @@ void CPU::SetProgramLocationsAsSymbols()
             case DEC: case INC:
             case INL: case DEL: case PSV:
             case SAV: case SVL: case PSL:
-            case PSP:
+            case PSP: case CID: case COM:
                 instructions[ii]->variableName.printf((char *)"%llx", (long long int)instructions[ii]->operand);
             default:
                 break;
@@ -1665,7 +1688,7 @@ bool CPU::RunInstruction(DslValue *dslValue)
         case END:
             PC = instructions.Count();
             return false;
-        case CID: case EFI: case DEF: case NOP: case PSP: case RFE:
+        case COM: case CID: case EFI: case DEF: case NOP: case PSP: case RFE:
             break;
         case SLV:
             params[BP+params[top - 1].operand].SAV(&params[top]);
@@ -1933,11 +1956,10 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
             right = &params[top];
             operands = 2;
             break;
-        case CID:
-        case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP: case MUL:
-        case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR: case SVL:
-        case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE: case AND:
-        case LOR:
+        case CID: case SAV: case ADA: case SUA: case MUA: case DIA: case MOA: case EXP:
+        case MUL: case DIV: case ADD: case SUB: case MOD: case XOR: case BND: case BOR:
+        case SVL: case SVR: case TEQ: case TNE: case TGR: case TGE: case TLS: case TLE:
+        case AND: case LOR:
             right = &params[top];
             left = params[top-1].elementAddress;
             operands = 2;
@@ -2006,6 +2028,8 @@ int64_t CPU::GetInstructionOperands(DslValue *instruction, DslValue *left,  DslV
         case RET:
             left = instruction;
             operands = 1;
+            break;
+        case COM:
             break;
     }
 
