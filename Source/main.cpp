@@ -454,9 +454,9 @@ void Serialize(BinaryFileWriter *file)
                 file->AddInt(dslValue->component->slots.Count());
                 for(int64_t tt=0; tt<dslValue->component->slots.Count(); ++tt)
                 {
-                    file->AddInt(dslValue->component->slots[0]->IsInput);
-                    file->AddString(&dslValue->component->slots[ii]->color);
-                    file->AddString(&dslValue->component->slots[ii]->variable);
+                    file->AddInt(dslValue->component->slots[tt]->IsInput);
+                    file->AddString(&dslValue->component->slots[tt]->color);
+                    file->AddString(&dslValue->component->slots[tt]->variable);
                 }
                 break;
         }

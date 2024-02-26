@@ -68,7 +68,8 @@ const char *OpCodeNames[] =
         "DCS",    //Save non-static result in a collection during definition
         "EFI",    //Event function information
         "RFE",    //Return from event.
-        "CID"     //Change module id.
+        "CID",    //Change module id.
+        "COM"
 };
 
 int64_t  CPU::errorCode;
@@ -132,7 +133,7 @@ int64_t CPU::DisplayASMCodeLine(List<DslValue *> &programInstructions, int64_t a
     switch(dslValue->opcode)
     {
         case COM:
-            printf("%s", dslValue->component->title.cStr());
+            printf("\t%s", dslValue->component->title.cStr());
             break;
         case CID:
             printf("\t%llx", (long long int)dslValue->moduleId);

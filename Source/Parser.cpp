@@ -182,19 +182,20 @@ DslValue *Parser::OutputCode(Token *token, OPCODES opcode)
             }
             break;
         case COM:
-            value = new DslValue(COM);
-            value->moduleId = token->value->moduleId;
-            value->component = new ComponentData(*token->value->component);
-            value->location = 0;
+            value = new DslValue(token->value);
+            value->opcode = COM;
             funInfo = functions.Get(&token->value->component->function);
-            value->variableName.CopyFrom(&funInfo->value->variableName);
-            value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
-            value->location = funInfo->value->location;
-            for(int64_t vv=0; vv<value->component->slots.Count(); ++vv)
+            if ( funInfo != nullptr )
             {
-                Token *v = variables.Get(token->identifier);
-                value->operand = v->value->operand;
+                value->variableName.CopyFrom(&funInfo->value->variableName);
+                value->variableScriptName.CopyFrom(&funInfo->value->variableScriptName);
+                value->location = funInfo->value->location;
             }
+//            for(int64_t vv=0; vv<value->component->slots.Count(); ++vv)
+//            {
+//                Token *v = variables.Get(&value->component->slots[vv]->variable);
+//                value->operand = v->value->operand;
+//            }
             if ( !program.push_back(value) )
             {
                 return nullptr;
@@ -279,23 +280,6 @@ void Parser::CreateOperation(Token *token)
         case CAST_TO_STR: OutputCode(token, CTS); break;
         case CAST_TO_BOOL: OutputCode(token, CTB); break;
     }
-}
-
-/// \desc Adds an event function instruc
-
-void Parser::AddEventFunction(int64_t modId, Token *token, U8String *handlerFunction, SystemErrorHandlers sysErrHandler)
-{
-    if ( handlerFunction->Count() == 0 )
-    {
-        return;
-    }
-
-    auto *ef = new Token(new DslValue(EFI));
-    ef->value->operand = (int64_t)sysErrHandler;
-    ef->value->moduleId = modId;
-    ef->identifier->CopyFrom(handlerFunction);
-
-    OutputCode(ef, EFI);
 }
 
 /// \desc Entry point, parses the lexed tokens into an IL program.

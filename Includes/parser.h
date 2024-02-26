@@ -87,9 +87,6 @@ private:
 
     /// \desc Checks if the position is in range of the tokens in the program token list.
     static bool IsPositionInRange(int64_t pos) { return pos >= 0 && pos < tokens.Count(); }
-
-    static void AddEventFunction(int64_t modId, Token *token, U8String *handlerFunction,
-                              SystemErrorHandlers sysErrHandler);
     Token *Peek(int64_t offset = 1);
     static void PushValue(Token *token);
     static void CreateVariable(Token *token);

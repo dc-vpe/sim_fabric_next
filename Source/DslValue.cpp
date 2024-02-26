@@ -25,6 +25,7 @@ DslValue::DslValue()
     jsonKey        = {};
     moduleId = -1;
     cases.Clear();
+    component = nullptr;
 }
 
 DslValue::DslValue(int64_t i)
@@ -46,6 +47,7 @@ DslValue::DslValue(int64_t i)
     jsonKey        = {};
     moduleId = -1;
     cases.Clear();
+    component = nullptr;
 }
 
 DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
@@ -67,6 +69,7 @@ DslValue::DslValue(OPCODES op, int64_t operand, int64_t location)
     jsonKey        = {};
     moduleId = -1;
     cases.Clear();
+    component = nullptr;
 }
 
 DslValue::DslValue(DslValue *dslValue)
@@ -88,6 +91,14 @@ DslValue::DslValue(DslValue *dslValue)
     jsonKey.CopyFrom(&dslValue->jsonKey);
     moduleId = dslValue->moduleId;
     cases.CopyFrom(&dslValue->cases);
+    if ( dslValue->component != nullptr )
+    {
+        component = new ComponentData(*dslValue->component);
+    }
+    else
+    {
+        component = nullptr;
+    }
 }
 
 DslValue::DslValue(U8String *u8String)
@@ -107,6 +118,7 @@ DslValue::DslValue(U8String *u8String)
     jsonKey        = {};
     moduleId = -1;
     cases.Clear();
+    component = nullptr;
 }
 
 /// \desc Copies the right collection to this one.
