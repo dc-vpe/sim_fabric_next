@@ -75,7 +75,6 @@ const char *OpCodeNames[] =
 int64_t  CPU::errorCode;
 U8String CPU::szErrorMsg;
 
-
 /////////////////////////////////////////////////////
 /// library allows adding external function calls ///
 /////////////////////////////////////////////////////
@@ -1429,7 +1428,7 @@ void CPU::DeSerializeIL(BinaryFileReader *binaryFileReader)
 ///         file does not exist or can't be read.
 bool CPU::DeSerializeSymbols(BinaryFileReader *binaryFileReader)
 {
-    while( !binaryFileReader->eof() )
+        while( !binaryFileReader->eof() )
     {
         int64_t addr = binaryFileReader->GetInt();
         binaryFileReader->GetString(&instructions[addr]->variableName);

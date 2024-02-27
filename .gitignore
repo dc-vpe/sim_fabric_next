@@ -1,1 +1,6 @@
 /bin/dsl.exe
+/skyshark/
+/VCE/
+*.o
+*.exe
+*.dll
