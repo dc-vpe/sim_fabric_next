@@ -309,7 +309,7 @@ bool U8String::Append(int64_t i)
     return push_back(&tmp);
 }
 
-bool U8String::printf(char *format, ...)
+bool U8String::printf(bool append, char *format, ...)
 {
     va_list length_args;
     va_start(length_args, format);
@@ -321,7 +321,15 @@ bool U8String::printf(char *format, ...)
     va_end(result_args);
     va_end(length_args);
 
-    CopyFromCString(tmp);
+    if ( append )
+    {
+        Append(tmp);
+    }
+    else
+    {
+        CopyFromCString(tmp);
+    }
+
     free(tmp);
 
     return true;

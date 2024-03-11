@@ -85,6 +85,7 @@ public:
     }
 
     /// \desc Gets a double representation of the numbers in the buffer.
+    /// \return A double value representing the value in the string.
     double GetDouble()
     {
         const char *str = cStr();
@@ -246,7 +247,7 @@ public:
 
     /// \desc Provides printf style string creation for the U8String.
     /// \return True if successful else false.
-    bool printf(char *format, ...);
+    bool printf(bool append, char *format, ...);
 
     /// \desc Writes the contents of the u8string to a file.
     /// \param file full path file name of the file to write.
