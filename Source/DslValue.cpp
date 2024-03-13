@@ -1413,15 +1413,15 @@ void DslValue::JsonAppendItemText(U8String *buffer)
     switch( type )
     {
         default:
-            tmp.printf((char *)"\n");
+            tmp.printf(false, (char *)"\n");
             buffer->Append(&tmp);
             return;
         case INTEGER_VALUE:
-            tmp.printf((char *)"%ld", iValue);
+            tmp.printf(false, (char *)"%ld", iValue);
             buffer->Append(&tmp);
             break;
         case DOUBLE_VALUE:
-            tmp.printf((char *)"%f", dValue);
+            tmp.printf(false, (char *)"%f", dValue);
             buffer->Append(&tmp);
             break;
         case CHAR_VALUE:
@@ -1467,12 +1467,12 @@ void DslValue::JsonAppendKeyName(U8String *key, U8String *buffer)
                 ptr += 13;
                 break;
         }
-        tmp.printf((char *)"\"%s\":", ptr);
+        tmp.printf(false, (char *)"\"%s\":", ptr);
         buffer->Append(&tmp);
         return;
     }
 
-    tmp.printf((char *)"\"%s\":", key->cStr());
+    tmp.printf(false, (char *)"\"%s\":", key->cStr());
     buffer->Append(&tmp);
 }
 
@@ -1483,7 +1483,7 @@ bool DslValue::AppendAsJsonText(U8String *buffer)
 
     if ( type == COLLECTION )
     {
-        tmp.printf((char *)"{ ");
+        tmp.printf(false, (char *)"{ ");
         buffer->Append(&tmp);
         List<KeyData *> list;
         DslValue::GetKeyData(this, &list);
@@ -1492,7 +1492,7 @@ bool DslValue::AppendAsJsonText(U8String *buffer)
             auto *t = (DslValue *)list.get(ii)->Data();
             if ( t->type == COLLECTION )
             {
-                tmp.printf((char *)"\"%s\":", list.get(ii)->Key()->cStr());
+                tmp.printf(false, (char *)"\"%s\":", list.get(ii)->Key()->cStr());
                 t->AppendAsJsonText(buffer);
             }
             else
@@ -1502,11 +1502,11 @@ bool DslValue::AppendAsJsonText(U8String *buffer)
             }
             if ( ii + 1 < list.Count() )
             {
-                tmp.printf((char *)", ");
+                tmp.printf(false, (char *)", ");
                 buffer->Append(&tmp);
             }
         }
-        tmp.printf((char *)" }");
+        tmp.printf(false, (char *)" }");
         buffer->Append(&tmp);
     }
     else
@@ -1534,19 +1534,19 @@ const char *DslValue::GetValueAsString(U8String *out, bool addComma)
             AppendAsJsonText(out);
             break;
         case INTEGER_VALUE:
-            out->printf((char *)"%lld", iValue);
+            out->printf(false, (char *)"%lld", iValue);
             break;
         case DOUBLE_VALUE:
-            out->printf((char *)"%d", dValue);
+            out->printf(false, (char *)"%d", dValue);
             break;
         case CHAR_VALUE:
-            out->printf((char *)"%d", cValue);
+            out->printf(false, (char *)"%d", cValue);
             break;
         case STRING_VALUE:
-            out->printf((char *)"%s", sValue.cStr());
+            out->printf(false, (char *)"%s", sValue.cStr());
             break;
         case BOOL_VALUE:
-            out->printf((char *)"%s", bValue ? "true" : "false");
+            out->printf(false, (char *)"%s", bValue ? "true" : "false");
             break;
     }
 

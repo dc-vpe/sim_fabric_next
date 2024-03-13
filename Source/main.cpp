@@ -447,6 +447,7 @@ void Serialize(BinaryFileWriter *file)
             case COM:
                 file->AddString(&dslValue->component->title);
                 file->AddString(&dslValue->component->toolTip);
+                file->AddString(&dslValue->component->function);
                 file->AddInt(dslValue->component->x);
                 file->AddInt(dslValue->component->y);
                 file->AddInt(dslValue->component->width);
@@ -722,6 +723,9 @@ int main(int argc, char *argv[])
                 printf("\nRun Time : %f\n", (end - start) * 1000);
                 break;
         }
+
+        //for testing
+        cpu->WriteComponentFile();
 
         delete cpu;
     }

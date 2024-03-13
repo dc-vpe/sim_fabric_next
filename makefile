@@ -1,4 +1,4 @@
-all:	bin/dsl.exe bin/wcpu.dll
+all:	bin/dsl.exe
 
 CC=g++
 ID = Includes

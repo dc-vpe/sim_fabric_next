@@ -4466,7 +4466,11 @@ TokenTypes Lexer::AddComponent(LocationInfo start, LocationInfo end)
 
     //Get the tool tip if it exists.
     type = GetNextTokenType(true);
-    if ( type != CLOSE_PAREN )
+    if ( type == CLOSE_PAREN )
+    {
+        componentData.toolTip.CopyFromCString("No Tool Tip");
+    }
+    else
     {
         if ( type != COMMA )
         {

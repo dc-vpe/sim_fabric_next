@@ -1400,6 +1400,7 @@ void CPU::DeSerializeIL(BinaryFileReader *binaryFileReader)
                 dslValue->component = new ComponentData();
                 binaryFileReader->GetString(&dslValue->component->title);
                 binaryFileReader->GetString(&dslValue->component->toolTip);
+                binaryFileReader->GetString(&dslValue->component->function);
                 dslValue->component->x = binaryFileReader->GetInt();
                 dslValue->component->y = binaryFileReader->GetInt();
                 dslValue->component->width = binaryFileReader->GetInt();
@@ -1413,6 +1414,9 @@ void CPU::DeSerializeIL(BinaryFileReader *binaryFileReader)
                     binaryFileReader->GetString(&slotData.variable);
                     dslValue->component->slots.push_back(new SlotData(slotData));
                 }
+                //Save the location of the com component as it contains the information
+                //about the component.
+                comInstAddr.push_back(instructions.Count());
                 break;
             }
         }
@@ -1452,7 +1456,7 @@ void CPU::SetProgramLocationsAsSymbols()
             case INL: case DEL: case PSV:
             case SAV: case SVL: case PSL:
             case PSP: case CID: case COM:
-                instructions[ii]->variableName.printf((char *)"%llx", (long long int)instructions[ii]->operand);
+                instructions[ii]->variableName.printf(false, (char *)"%llx", (long long int)instructions[ii]->operand);
             default:
                 break;
         }
@@ -1497,6 +1501,124 @@ bool CPU::Run()
     }
 
     return true;
+}
+
+/// \desc Runs the named function if it exists.
+/// \param function Name of the function to call.
+/// \returns True if the function exists and was called, else false if the function does not exist.
+/// \remark Assumes that the function call does not have any parameters.
+bool CPU::RunComponent(U8String *function)
+{
+    for(int64_t ii=0; ii < comInstAddr.Count(); ++ii)
+    {
+        int64_t addr = comInstAddr[ii];
+        if ( instructions[addr]->component->function.IsEqual(function))
+        {
+            auto dslValue = DslValue();
+            params[++top].LiteCopy(&dslValue);
+            JumpToSubroutine(instructions[addr]);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void CPU::WriteComponentFile()
+{
+    U8String com;
+
+    GetComponents(com);
+
+    com.fwrite((const char *)R"(C:\dev\sim\bin\components.json)", true);
+}
+
+void CPU::GetComponents(U8String &out)
+{
+    componentsInformation.Clear();
+
+    out.printf(false, (char *)"[\n");
+
+    for(int64_t ii=0; ii<comInstAddr.Count(); ++ii)
+    {
+        int64_t addr = comInstAddr[ii];
+        ComponentData *cd = instructions[addr]->component;
+        out.push_back('\t');
+        out.printf(true, (char *)"{\n");
+        out.push_back('\t');
+        out.printf(true, (char *)R"("title":"%s",)", cd->title.cStr());
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("toolTip":"%s",)", cd->toolTip.cStr());
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("function":"%s",)", cd->function.cStr());
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("x":%lld,)", cd->x);
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("y":%lld,)", cd->y);
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("width":%lld,)", cd->width);
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("height":%lld,)", cd->height);
+        out.push_back('\n');
+        out.push_back('\t');
+        out.printf(true, (char *)R"("slots":)");
+        out.push_back('\n');
+        out.push_back('\t');
+        out.push_back('[');
+        out.push_back('\n');
+        for(int64_t tt=0; tt<cd->slots.Count(); ++tt)
+        {
+            out.push_back('\t');
+            out.push_back('\t');
+            out.printf(true, (char *)"{\n");
+            out.push_back('\t');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.printf(true, (char *)R"("variable":"%s",)", cd->slots[tt]->variable.cStr());
+            out.push_back('\n');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.printf(true, (char *)R"("color":"%s",)", cd->slots[tt]->color.cStr());
+            out.push_back('\n');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.printf(true, (char *)R"("type":%s)", cd->slots[tt]->IsInput ? "true" : "false");
+            out.push_back('\n');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.push_back('\t');
+            out.printf(true, (char *)"}");
+            if ( tt + 1 < cd->slots.Count() )
+            {
+                out.push_back(',');
+            }
+            out.push_back('\n');
+        }
+
+        out.push_back('\t');
+        out.push_back('\t');
+        out.push_back('\t');
+        out.printf(true, (char *)R"(])");    //close off slots list
+        out.push_back('\n');
+        out.push_back('\t');
+        out.push_back('\t');
+        out.printf(true, (char *)R"(})");     //close off component
+        out.push_back('\n');
+        if ( ii + 1 <comInstAddr.Count() )
+        {
+            out.printf(true, (char *)",\n");
+        }
+    }
+
+    out.push_back(']');
 }
 
 void CPU::ExtendCollection(DslValue *collection, int64_t newEnd)

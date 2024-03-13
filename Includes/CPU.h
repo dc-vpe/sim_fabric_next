@@ -64,6 +64,19 @@ public:
     /// \desc Runs the compiled program.
     bool Run();
 
+    /// \desc Runs the specified function.
+    /// \param function Pointer to a U8String that names the function to be run.
+    /// \remark This method currently only runs functions that do not accept arguments. This
+    ///         will be fixed shortly.
+    bool RunComponent(U8String *function);
+
+    /// \desc Gets a json formatted string that contains the component information for each
+    ///       component defined in the program.
+    void GetComponents(U8String &out);
+
+    //for testing
+    void WriteComponentFile();
+
     /// \desc Displays a CPU instruction, used for testing and debugging.
     /// \param addr address of the instruction to show.
     static int64_t DisplayASMCodeLine(List<DslValue *> &programInstructions, int64_t addr, bool newline = true);
@@ -74,6 +87,10 @@ public:
     /// \desc This list is the parameter stack used for calculations and parameter passing to string and
     ///       native functions.
     List<DslValue> params;
+
+    /// \desc Contains the returned json string for the components defined in the program after
+    ///       a call to get component info.
+    U8String componentsInformation = {};
 
     /// \desc Top of the parameter stack.
     /// \remark The reason a separate top of stack value is used instead
@@ -104,6 +121,9 @@ private:
     /// \desc The cached index of the currently set on tick function location. This is changed right
     ///       before the instruction which has a different module id is executed.
     int64_t onTickEvent;
+
+    /// \desc Location of each component in the program.
+    List<int64_t> comInstAddr = {};
 
     /// \desc This list contains the instructions that make up the program that is being executed by
     ///       this CPU. Multiple CPUs can all be running programs at the same time without
@@ -318,7 +338,6 @@ public:
     void pfn_random();
     void pfn_seed();
 };
-
 
 extern const char *OpCodeNames[];
 
